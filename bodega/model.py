@@ -42,6 +42,29 @@ class Charger(Agent):
         self.agente = Agent
 
 
+class Picker(Agent):
+    def __init__(self, unique_id, model):
+        super().__init__(unique_id, model)
+        self.iteration = 0
+        self.is_active = False
+        self.capacity = 5
+        self.max_capacity = 5
+    
+    def step(self):
+        self.iteration += 1
+        if self.iteration % 20 == 0:
+            self.is_active = True
+        if self.is_active:
+            # for item in self.model.grid.__getitem__(self.pos):
+            #     if isinstance(item, Box): self.capacity += 1
+            if self.capacity == 0:
+                self.is_active = False
+                self.capacity = self.max_capacity
+
+    def advance(self):
+        pass
+
+
 class Rack(Agent):
     def __init__(self, unique_id, model):
         super().__init__(unique_id, model)
@@ -54,20 +77,20 @@ class Box(Agent):
 
     def step(self):
         on_belt = False
-        deliver = False
+        delivery = False
         
         # Determinar si está en una cinta y si es de entrega o recolección
         for item in self.model.grid.__getitem__(self.pos):
             if isinstance(item, ConveyorBelt):
                 on_belt = True
-                deliver = item.deliver
+                delivery = item.delivery
                 break
         
         # Si está en una cinta de entrega y no esta al final, avanzar hacia arriba
-        if on_belt and deliver and self.pos[1] != 19:
+        if on_belt and delivery and self.pos[1] != 19:
             self.sig_pos = (self.pos[0], self.pos[1] + 1)
         # Si está en una cinta de recolección, avanzar hacia abajo
-        elif on_belt and not deliver:
+        elif on_belt and not delivery and self.pos[1] != 0:
             self.sig_pos = (self.pos[0], self.pos[1] - 1)
 
     def advance(self):
@@ -83,10 +106,11 @@ class Box(Agent):
         if can_move:
             self.model.grid.move_agent(self, self.sig_pos)
 
+
 class ConveyorBelt(Agent):
-    def __init__(self, unique_id, model, deliver=False, speed_box_arrival=2):
+    def __init__(self, unique_id, model, speed_box_arrival, delivery=False):
         super().__init__(unique_id, model)
-        self.deliver = deliver
+        self.delivery = delivery
         self.speed_box_arrival = speed_box_arrival
         self.iteration = 0
     
@@ -95,24 +119,32 @@ class ConveyorBelt(Agent):
         self.iteration += 1
 
         # Banda de llegada de paquetes
-        if self.deliver and self.pos[1] == 0 and self.iteration % self.speed_box_arrival == 0:
-            box = Box(f"90{self.iteration}", self.model)
+        if self.delivery and self.pos[1] == 0 and self.iteration % self.speed_box_arrival == 0:
+            box = Box(1500 + int(self.iteration / self.speed_box_arrival), self.model)
+            print(box.unique_id)
             self.model.grid.place_agent(box, self.pos)
             self.model.schedule.add(box)
             self.model.boxes.append(box)
-        elif not self.deliver and self.pos[1] == 19 and self.iteration % self.speed_box_arrival == 0:
-            box = Box(f"80{self.iteration}", self.model)
+        elif not self.delivery and self.pos[1] == 19 and self.iteration % self.speed_box_arrival == 0:
+            box = Box(2000 + int(self.iteration / self.speed_box_arrival), self.model)
+            print(box.unique_id)
             self.model.grid.place_agent(box, self.pos)
             self.model.schedule.add(box)
             self.model.boxes.append(box)
         # Banda de recolección de paquetes, eliminar paquete como si fuera de salida
-        elif not self.deliver and self.pos[1] == 0:
+        elif not self.delivery and self.pos[1] == 0:
+            picker: Picker = None
+            box: Box = None
             for item in self.model.grid.__getitem__(self.pos):
+                if isinstance(item, Picker):
+                    picker = item
                 if isinstance(item, Box):
-                    self.model.grid.remove_agent(item)
-                    self.model.schedule.remove(item)
-                    self.model.boxes.remove(item)
-                    break
+                    box = item
+            if picker.is_active and box != None:
+                picker.capacity -= 1
+                self.model.grid.remove_agent(item)
+                self.model.schedule.remove(item)
+                self.model.boxes.remove(item)
 
     def advance(self):
         pass
@@ -314,6 +346,7 @@ class Bodega(Model):
     def __init__(self, M: int = 50, N: int = 25,
                  num_robots: int = 5,
                  modo_pos_inicial: str = 'Aleatoria',
+                 speed_box_arrival: int = 3
                  ):
         self.robots: list[Robot] = []
         self.chargers: list[Charger] = []
@@ -333,12 +366,17 @@ class Bodega(Model):
         belt_size = 20
         positions_belts = [(0, i) for i in range(belt_size)] + [(M - 1, i) for i in range(belt_size)]
         for id, pos in enumerate(positions_belts):
-            if pos[0] == 0: belt = ConveyorBelt(int(f"{num_robots + 1}0{id}") + 1, self, deliver=True)
-            else: belt = ConveyorBelt(int(f"{num_robots + 1}0{id}") + 1, self, deliver=False)
+            if pos[0] == 0: belt = ConveyorBelt(15 + id, self, speed_box_arrival=speed_box_arrival, delivery=True)
+            else: belt = ConveyorBelt(15 + id, self, speed_box_arrival=speed_box_arrival, delivery=False)
             self.grid.place_agent(belt, pos)
             posiciones_disponibles.remove(pos)
             self.schedule.add(belt)
             self.conveyor_belts.append(belt)
+
+        # Posicionamiento de picker
+        picker = Picker(60, self)
+        self.grid.place_agent(picker, (M - 1, 0))
+        self.schedule.add(picker)
 
         # Posicionamiento de racks
         positions_racks = list()
@@ -346,7 +384,7 @@ class Bodega(Model):
             positions_racks += [(x, y) for x in list(range(3, 11)) + list(range(14, 22)) + list(range(25, 33)) + list(range(37, 45))]
 
         for id, pos in enumerate(positions_racks):
-            mueble = Rack(int(f"{num_robots}0{id}") + 1, self)
+            mueble = Rack(70 + id, self)
             self.grid.place_agent(mueble, pos)
             posiciones_disponibles.remove(pos)
             self.racks.append(mueble)
@@ -355,13 +393,13 @@ class Bodega(Model):
         # Cargadores en mitad superior y inferior
         self.positions_chargers = [(int(M / 2) + i, j) for i in [-1, 1] for j in [0, N - 1]]
         for id, pos in enumerate(self.positions_chargers):
-            charger = Charger(id + 77, self)
+            charger = Charger(id + 10, self)
             self.grid.place_agent(charger, pos)
             posiciones_disponibles.remove(pos)
             self.chargers.append(charger)
 
         for id, pos in enumerate(posiciones_disponibles):
-            celda = Cell(int(f"9{id}") + 1, self)
+            celda = Cell(400 + id, self)
             self.grid.place_agent(celda, pos)
 
         # Posicionamiento de agentes robot

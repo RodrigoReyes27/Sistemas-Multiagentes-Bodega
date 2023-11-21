@@ -53,10 +53,10 @@ if __name__ == '__main__':
             "positions": [{"id": rack.unique_id, "x": rack.pos[0], "y": rack.pos[1]} for rack in racks]
         }
 
-        # boxes = {
-        #     "quantity": len(boxes),
-        #     "positions": [{"id": box.unique_id, "x": box.pos[0], "y": box.pos[1]} for box in boxes]
-        # }
+        boxes = {
+            "quantity": len(boxes),
+            "positions": [{"id": box.unique_id, "x": box.pos[0], "y": box.pos[1]} for box in boxes]
+        }
 
         conveyor_belts = {
             "quantity": len(conveyor_belts),
@@ -67,7 +67,7 @@ if __name__ == '__main__':
             "robots": robots,
             "chargers": chargers,
             "racks": racks,
-            # "boxes": boxes,
+            "boxes": boxes,
             "conveyor_belts": conveyor_belts
         }
         
