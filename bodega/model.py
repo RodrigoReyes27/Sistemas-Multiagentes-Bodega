@@ -120,12 +120,14 @@ class ConveyorBelt(Agent):
 
         # Banda de llegada de paquetes
         if self.delivery and self.pos[1] == 0 and self.iteration % self.speed_box_arrival == 0:
-            box = Box(f"90{self.iteration}", self.model)
+            box = Box(1500 + int(self.iteration / self.speed_box_arrival), self.model)
+            print(box.unique_id)
             self.model.grid.place_agent(box, self.pos)
             self.model.schedule.add(box)
             self.model.boxes.append(box)
         elif not self.delivery and self.pos[1] == 19 and self.iteration % self.speed_box_arrival == 0:
-            box = Box(f"80{self.iteration}", self.model)
+            box = Box(2000 + int(self.iteration / self.speed_box_arrival), self.model)
+            print(box.unique_id)
             self.model.grid.place_agent(box, self.pos)
             self.model.schedule.add(box)
             self.model.boxes.append(box)
@@ -364,15 +366,15 @@ class Bodega(Model):
         belt_size = 20
         positions_belts = [(0, i) for i in range(belt_size)] + [(M - 1, i) for i in range(belt_size)]
         for id, pos in enumerate(positions_belts):
-            if pos[0] == 0: belt = ConveyorBelt(int(f"{num_robots + 1}0{id}") + 1, self, speed_box_arrival=speed_box_arrival, delivery=True)
-            else: belt = ConveyorBelt(int(f"{num_robots + 1}0{id}") + 1, self, speed_box_arrival=speed_box_arrival, delivery=False)
+            if pos[0] == 0: belt = ConveyorBelt(15 + id, self, speed_box_arrival=speed_box_arrival, delivery=True)
+            else: belt = ConveyorBelt(15 + id, self, speed_box_arrival=speed_box_arrival, delivery=False)
             self.grid.place_agent(belt, pos)
             posiciones_disponibles.remove(pos)
             self.schedule.add(belt)
             self.conveyor_belts.append(belt)
 
         # Posicionamiento de picker
-        picker = Picker(100, self)
+        picker = Picker(60, self)
         self.grid.place_agent(picker, (M - 1, 0))
         self.schedule.add(picker)
 
@@ -382,7 +384,7 @@ class Bodega(Model):
             positions_racks += [(x, y) for x in list(range(3, 11)) + list(range(14, 22)) + list(range(25, 33)) + list(range(37, 45))]
 
         for id, pos in enumerate(positions_racks):
-            mueble = Rack(int(f"{num_robots}0{id}") + 1, self)
+            mueble = Rack(70 + id, self)
             self.grid.place_agent(mueble, pos)
             posiciones_disponibles.remove(pos)
             self.racks.append(mueble)
@@ -391,13 +393,13 @@ class Bodega(Model):
         # Cargadores en mitad superior y inferior
         self.positions_chargers = [(int(M / 2) + i, j) for i in [-1, 1] for j in [0, N - 1]]
         for id, pos in enumerate(self.positions_chargers):
-            charger = Charger(id + 77, self)
+            charger = Charger(id + 10, self)
             self.grid.place_agent(charger, pos)
             posiciones_disponibles.remove(pos)
             self.chargers.append(charger)
 
         for id, pos in enumerate(posiciones_disponibles):
-            celda = Cell(int(f"9{id}") + 1, self)
+            celda = Cell(400 + id, self)
             self.grid.place_agent(celda, pos)
 
         # Posicionamiento de agentes robot
