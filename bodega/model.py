@@ -68,12 +68,23 @@ class Picker(Agent):
 class Rack(Agent):
     def __init__(self, unique_id, model):
         super().__init__(unique_id, model)
+    
+    def step(self):
+        # Rack de llegada de paquetes, checar si hay paquetes esperando
+        if self.pos == (0, 20):
+            for item in self.model.grid.__getitem__(self.pos):
+                if isinstance(item, Box): self.model.box_waiting = True
+                else: self.model.box_waiting = False
+
+    def advance(self):
+        pass
 
 
 class Box(Agent):
     def __init__(self, unique_id, model):
         super().__init__(unique_id, model)
         self.sig_pos = None
+        self.robot = None
 
     def step(self):
         on_belt = False
@@ -87,11 +98,15 @@ class Box(Agent):
                 break
         
         # Si está en una cinta de entrega y no esta al final, avanzar hacia arriba
-        if on_belt and delivery and self.pos[1] != 19:
+        # if on_belt and delivery and self.pos[1] != 19:
+        if on_belt and delivery:
             self.sig_pos = (self.pos[0], self.pos[1] + 1)
         # Si está en una cinta de recolección, avanzar hacia abajo
         elif on_belt and not delivery and self.pos[1] != 0:
             self.sig_pos = (self.pos[0], self.pos[1] - 1)
+        if self.robot != None:
+            print(self.robot)
+            self.sig_pos = self.robot.sig_pos
 
     def advance(self):
         # Si la caja no se ocupa mover
@@ -103,6 +118,9 @@ class Box(Agent):
                 can_move = False
                 break
         
+        # Checar si el robot que lo lleva cambia de dirección
+        if self.robot != None and self.sig_pos != self.robot.sig_pos:
+            self.robot = self.robot.sig_pos
         if can_move:
             self.model.grid.move_agent(self, self.sig_pos)
 
@@ -118,16 +136,14 @@ class ConveyorBelt(Agent):
         # Contador de iteraciones para la llegada de paquetes
         self.iteration += 1
 
-        # Banda de llegada de paquetes
+        # Banda de llegada de paquetes - Crear paquete
         if self.delivery and self.pos[1] == 0 and self.iteration % self.speed_box_arrival == 0:
             box = Box(1500 + int(self.iteration / self.speed_box_arrival), self.model)
-            print(box.unique_id)
             self.model.grid.place_agent(box, self.pos)
             self.model.schedule.add(box)
             self.model.boxes.append(box)
         elif not self.delivery and self.pos[1] == 19 and self.iteration % self.speed_box_arrival == 0:
             box = Box(2000 + int(self.iteration / self.speed_box_arrival), self.model)
-            print(box.unique_id)
             self.model.grid.place_agent(box, self.pos)
             self.model.schedule.add(box)
             self.model.boxes.append(box)
@@ -159,7 +175,8 @@ class Robot(Agent):
         self.sig_pos = None
         self.movimientos = 0
         self.carga = 100
-        self.camino_carga = []
+        self.camino = []
+        self.has_box = False
 
 
     def seleccionar_nueva_pos(self, lista_de_vecinos):
@@ -176,20 +193,39 @@ class Robot(Agent):
 
         self.sig_pos = self.random.choice(vecinos_disponibles).pos
         # Calcular ruta a cargador más cercano
-        if (len(self.camino_carga) == 0) and self.carga < 30 and not self.isCharging :
-            self.camino_carga = self.aStar()
+        if (len(self.camino) == 0) and self.carga < 30 and not self.isCharging:
+            dest = self.model.positions_chargers
+            self.camino = self.aStar(dest)
+        elif not self.has_box and self.model.box_waiting and len(self.camino) == 0:
+            # Posicion rack de llegada de paquetes
+            dest = [(0, 20)]
+            self.camino = self.aStar(dest)
         
-        if(self.isCharging and not isinstance(self.model.grid.__getitem__((self.pos[0], self.pos[1]))[0], Charger)):
+        if (self.isCharging and not isinstance(self.model.grid.__getitem__((self.pos[0], self.pos[1]))[0], Charger)):
             self.isCharging = False
 
-        # Elegir ruta
-        if (len(self.camino_carga) > 0 and not self.isCharging):
-            estimated_sig_pos = self.camino_carga[-1]       
+        # Elegir ruta a cargador
+        if (len(self.camino) > 0 and not self.isCharging and self.carga <= 30):
+            estimated_sig_pos = self.camino[-1]       
             if not (isinstance(self.model.grid.__getitem__((estimated_sig_pos[0], estimated_sig_pos[1]))[0], Robot) and isinstance(self.model.grid.__getitem__((estimated_sig_pos[0], estimated_sig_pos[1]))[0], Charger)):  
-                sig_pos = self.camino_carga.pop()
+                sig_pos = self.camino.pop()
                 self.sig_pos = sig_pos
-            if len(self.camino_carga) == 0 and isinstance(self.model.grid.__getitem__((self.sig_pos[0], self.sig_pos[1]))[0], Charger):
+            if len(self.camino) == 0 and isinstance(self.model.grid.__getitem__((self.sig_pos[0], self.sig_pos[1]))[0], Charger):
                 self.isCharging = True
+        elif not self.model.box_waiting and len(self.camino) > 0:
+            self.camino.clear()
+        elif len(self.camino) > 0 and self.model.box_waiting:
+            estimated_sig_pos = self.camino[-1]
+            if not isinstance(self.model.grid.__getitem__((estimated_sig_pos[0], estimated_sig_pos[1]))[0], Robot):
+                sig_pos = self.camino.pop()
+                self.sig_pos = sig_pos
+            if len(self.camino) == 0:
+                for item in self.model.grid.__getitem__(self.sig_pos):
+                    box: Box = None
+                    if isinstance(item, Box): box = item
+                if box != None:
+                    box.robot = self
+                    self.has_box = True
         else:
             self.seleccionar_nueva_pos(vecinos_disponibles)
 
@@ -229,9 +265,9 @@ class Robot(Agent):
                 self.carga -= 1
             self.model.grid.move_agent(self, self.sig_pos)
 
-    def aStar(self):
+    def aStar(self, dest):
         start = self.sig_pos
-        dest = self.model.positions_chargers
+        # dest = self.model.positions_chargers
         n = len(dest)
 
         # Priority queue - Procesar nodo con menor f (CellAlgorithm)
@@ -346,8 +382,9 @@ class Bodega(Model):
     def __init__(self, M: int = 50, N: int = 25,
                  num_robots: int = 5,
                  modo_pos_inicial: str = 'Aleatoria',
-                 speed_box_arrival: int = 3
+                 speed_box_arrival: int = 10
                  ):
+        # Listas de agentes
         self.robots: list[Robot] = []
         self.chargers: list[Charger] = []
         self.racks: list[Rack] = []
@@ -359,6 +396,8 @@ class Bodega(Model):
 
         self.grid = MultiGrid(M, N, False)
         self.schedule = SimultaneousActivation(self)
+
+        self.box_waiting = False
 
         posiciones_disponibles = [pos for _, pos in self.grid.coord_iter()]
 
@@ -382,11 +421,15 @@ class Bodega(Model):
         positions_racks = list()
         for y in [3, 4, 8, 9, 13, 14, 18, 19]:
             positions_racks += [(x, y) for x in list(range(3, 11)) + list(range(14, 22)) + list(range(25, 33)) + list(range(37, 45))]
+        positions_racks.append((0, belt_size))
+        positions_racks.append((M - 1, belt_size))
 
         for id, pos in enumerate(positions_racks):
             mueble = Rack(70 + id, self)
             self.grid.place_agent(mueble, pos)
             posiciones_disponibles.remove(pos)
+            if pos == (0, belt_size) or pos == (M - 1, belt_size):
+                self.schedule.add(mueble)
             self.racks.append(mueble)
 
         # Posicionamiento de cargadores
