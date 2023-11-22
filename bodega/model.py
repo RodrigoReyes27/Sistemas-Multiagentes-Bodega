@@ -141,11 +141,11 @@ class ConveyorBelt(Agent):
             self.model.grid.place_agent(box, self.pos)
             self.model.schedule.add(box)
             self.model.boxes.append(box)
-        elif not self.delivery and self.pos[1] == 19 and self.iteration % self.speed_box_arrival == 0:
-            box = Box(2000 + int(self.iteration / self.speed_box_arrival), self.model)
-            self.model.grid.place_agent(box, self.pos + 1)
-            self.model.schedule.add(box)
-            self.model.boxes.append(box)
+        # elif not self.delivery and self.pos[1] == 19 and self.iteration % self.speed_box_arrival == 0:
+        #     box = Box(2000 + int(self.iteration / self.speed_box_arrival), self.model)
+        #     self.model.grid.place_agent(box, (self.pos[0], self.pos[1] + 1))
+        #     self.model.schedule.add(box)
+        #     self.model.boxes.append(box)
         # Banda de recolección de paquetes, eliminar paquete como si fuera de salida
         elif not self.delivery and self.pos[1] == 0:
             picker: Picker = None
@@ -174,9 +174,7 @@ class Robot(Agent):
         self.sig_pos = None
         self.movimientos = 0
         self.carga = 100
-        self.camino = []
         self.has_box = False
-        self.leave_box = False
 
 
     def seleccionar_nueva_pos(self, lista_de_vecinos):
@@ -184,210 +182,27 @@ class Robot(Agent):
 
     def step(self):
         vecinos = self.model.grid.get_neighbors(
-            self.pos, moore=True, include_center=False)
+            self.pos, moore=False, include_center=False)
 
         vecinos_disponibles = list()
-        rack_disponible: Rack = None
+        rack_disponible_dejar: Rack = None
+        rack_disponible_tomar: Rack = None
         for vecino in vecinos:
             if not isinstance(vecino, (Rack, Robot, ConveyorBelt, Box)): vecinos_disponibles.append(vecino)
-            if isinstance(vecino, Rack) and vecino.box == None: rack_disponible = vecino
+            if isinstance(vecino, Rack) and vecino.box == None: rack_disponible_dejar = vecino
+            elif isinstance(vecino, Rack) and vecino.box != None: rack_disponible_tomar = vecino
+
 
         self.sig_pos = self.random.choice(vecinos_disponibles).pos
-        # Calcular ruta a cargador más cercano
-        if (len(self.camino) or not self.has_box) == 0 and self.carga < 30 and not self.isCharging:
-            dest = self.model.positions_chargers
-            self.camino = self.aStar(dest)
-        elif not self.has_box and self.model.box_waiting and len(self.camino) == 0:
-            # Posicion rack de llegada de paquetes
-            dest = [(0, 20)]
-            self.camino = self.aStar(dest)
         
 
-        if (self.isCharging and not isinstance(self.model.grid.__getitem__((self.pos[0], self.pos[1]))[0], Charger)):
-            self.isCharging = False
-
-        # Poner caja en rack
-        if self.has_box and rack_disponible != None:
-            box: Box = None
-            for item in self.model.grid.__getitem__(self.pos):
-                if isinstance(item, Box): box = item
-            if box != None:
-                self.has_box = False
-                box.robot = None
-                box.sig_pos = rack_disponible.pos
-                rack_disponible.box = box
-        # Elegir ruta a cargador
-        elif (len(self.camino) > 0 and not self.isCharging and self.carga <= 30):
-            estimated_sig_pos = self.camino[-1]       
-            if not (isinstance(self.model.grid.__getitem__((estimated_sig_pos[0], estimated_sig_pos[1]))[0], Robot) and isinstance(self.model.grid.__getitem__((estimated_sig_pos[0], estimated_sig_pos[1]))[0], Charger)):  
-                sig_pos = self.camino.pop()
-                self.sig_pos = sig_pos
-            if len(self.camino) == 0 and isinstance(self.model.grid.__getitem__((self.sig_pos[0], self.sig_pos[1]))[0], Charger):
-                self.isCharging = True
-        elif not self.model.box_waiting and len(self.camino) > 0:
-            self.camino.clear()
-        elif len(self.camino) > 0 and self.model.box_waiting:
-            estimated_sig_pos = self.camino[-1]
-            if not isinstance(self.model.grid.__getitem__((estimated_sig_pos[0], estimated_sig_pos[1]))[0], Robot):
-                sig_pos = self.camino.pop()
-                self.sig_pos = sig_pos
-            if len(self.camino) == 0:
-                box: Box = None
-                for item in self.model.grid.__getitem__(self.sig_pos):
-                    if isinstance(item, Box): box = item
-                if box != None:
-                    box.robot = self
-                    self.has_box = True
-        else:
-            self.seleccionar_nueva_pos(vecinos_disponibles)
-
-        if self.carga >= 100:
-            self.carga = 100
-            self.isCharging = False
-
-    def advance(self):
-        robots = get_sig_positions(self.model)
-        
-        celdas_no_disponibles = list()
-        cambio = False
-        for robot in robots:
-            if self.sig_pos == robot["sig_pos"] and self.unique_id != robot["unique_id"]:
-                celdas_no_disponibles.append(robot["sig_pos"])
-                cambio = True
-        
-        vecinos = self.model.grid.get_neighbors(
-                        self.pos, moore=True, include_center=False)
-        vecinos_disponibles = list()
-        
-        for vecino in vecinos:
-            if not isinstance(vecino, (Rack, ConveyorBelt)) or (isinstance(vecino, Robot) and vecino.sig_pos not in celdas_no_disponibles):
-                vecinos_disponibles.append(vecino)
-        
-        if cambio:
-            self.seleccionar_nueva_pos(vecinos_disponibles)
-
+    def advance(self):        
         if self.pos != self.sig_pos:
             self.movimientos += 1
-
+        
         if self.carga > 0:
-            if self.isCharging and isinstance(self.model.grid.__getitem__((self.sig_pos[0], self.sig_pos[1]))[0], Charger): 
-                    self.carga += 25
-                    self.carga = min(self.carga, 100)
-            else:
-                self.carga -= 1
+            self.carga -= 1
             self.model.grid.move_agent(self, self.sig_pos)
-
-    def aStar(self, dest):
-        start = self.sig_pos
-        # dest = self.model.positions_chargers
-        n = len(dest)
-
-        # Priority queue - Procesar nodo con menor f (CellAlgorithm)
-        open_list = list()
-        # Almacena el path en orden inverso
-        path = list()
-        # Almacena los nodos visitados para saber si ya se visitaron en O(1)
-        visited_nodes = set()
-        # Almacena los detalles de cada nodo y se modifica en cada iteracion para reordenar adecuadamente la priority_queue
-        cell_details = list()
-        for i in range(self.model.grid.width):
-            cell_details.append(list())
-            for j in range(self.model.grid.height):
-                cell_details[i].append(CellAlgorithm(x=i, y=j, n=n))
-        
-        # Cambiar datos de nodos destinos en cell_details
-        destination_cells = list()
-        for x, y in dest:
-            cell_details[x][y].g = [0] * n
-            cell_details[x][y].h = [0] * n
-            cell_details[x][y].f = [0] * n
-            destination_cells.append(cell_details[x][y])
-
-        # Cambiar datos de nodo inicial en cell_details
-        start_cell = cell_details[start[0]][start[1]]
-        start_cell.g = [0] * n
-        start_cell.h = self.heuristic(start_cell, destination_cells)
-        start_cell.f = [start_cell.g[i] + start_cell.h[i] for i in range(n)]
-        start_cell.parent_x = [start[0]] * n
-        start_cell.parent_y = [start[1]] * n
-        
-        # Para cada destino (cargador) se calcula el path y se elige el más corto
-        for i in range(n):
-            visited_nodes.add((start[0], start[1]))
-            open_list.append(start_cell)
-
-            path.append(self.aStarHelper(cell_details, open_list, destination_cells, visited_nodes, i))
-            open_list.clear()
-            visited_nodes.clear()
-        
-        return min(path, key=len)
-
-    def aStarHelper(self, cell_details, open_list, destination_cells, visited_nodes, i):
-        import heapq
-        path = list()
-        
-        # 8 movimientos posibles
-        moves = [(1, 0), (0, 1), (-1, 0), (0, -1), (1, 1),(-1, -1), (-1, 1), (1, -1)]
-        # moves = [(1, 0), (0, 1), (-1, 0), (0, -1)]
-        while len(open_list) != 0:
-            heapq.heapify(open_list)
-            current_cell = heapq.heappop(open_list)
-            x = current_cell.x
-            y = current_cell.y
-
-            for move in moves:
-                new_x = x + move[0]
-                new_y = y + move[1]
-
-                if not self.isValid(new_x, new_y):
-                    continue
-                
-                # Recorrer para todos los destinos
-                if (new_x, new_y) == (destination_cells[i].x, destination_cells[i].y):
-                        cell_details[new_x][new_y].parent_x[i] = x
-                        cell_details[new_x][new_y].parent_y[i] = y
-                        
-                        row = destination_cells[i].x
-                        col = destination_cells[i].y
-
-                        while not (cell_details[row][col].parent_x[i] == row and 
-                                   cell_details[row][col].parent_y[i] == col):
-                            path.append((row, col))
-                            temp_row = cell_details[row][col].parent_x[i]
-                            temp_col = cell_details[row][col].parent_y[i]
-                            row = temp_row
-                            col = temp_col
-                        return path
-                # Checar que no sea un obstaculo y no haya sido visitado
-                elif (not isinstance(self.model.grid.__getitem__((new_x, new_y))[0], (Rack, ConveyorBelt)) and
-                      (new_x, new_y) not in visited_nodes
-                      ):
-                    new_G = current_cell.g[i] + 1
-                    new_H = self.heuristic(cell_details[new_x][new_y], [destination_cells[i]])
-                    new_F = new_G + new_H[0]
-
-                    if (cell_details[new_x][new_y].f[i] == self.FLT_MAX or 
-                        cell_details[new_x][new_y].f[i] > new_F):
-                        open_list.append(cell_details[new_x][new_y])
-                        cell_details[new_x][new_y].f[i] = new_F
-                        cell_details[new_x][new_y].g[i] = new_G
-                        cell_details[new_x][new_y].h[i] = new_H
-                        cell_details[new_x][new_y].parent_x[i] = x
-                        cell_details[new_x][new_y].parent_y[i] = y
-             
-    def heuristic(self, src:CellAlgorithm, dest:[]):
-        import math
-        # Distancia Euclidiana
-        res = list()
-        for cell in dest:
-            res.append(math.sqrt((src.x - cell.x) ** 2 + (src.y - cell.y) ** 2))
-
-        return res
-    
-    def isValid(self, row, col):
-        return (row >= 0 and 
-                row < self.model.grid.width and 
-                col >= 0 and col < self.model.grid.height)
 
 
 class Bodega(Model):
