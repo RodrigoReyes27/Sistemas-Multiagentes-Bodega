@@ -54,7 +54,7 @@ class Picker(Agent):
         self.iteration += 1
         
         # Determinar si el camion va a estar activo (Cada cierto tiempo)
-        if self.iteration % 20 == 0:
+        if self.iteration % 200 == 0:
             self.is_active = True
         # Si el camion está activo y no tiene capacidad para llevar mas paquetes, desactivar
         if self.is_active and self.capacity == 0:
@@ -207,8 +207,8 @@ class Robot(Agent):
             self.leave_box()
         elif self.carga <= 30 and len(self.path) == 0:
             self.charge()
-        # elif self.model.picker.is_active and len(self.path) == 0 and len(self.model.rack_box) > 0:
-        #     self.search_box_deliver()
+        elif self.model.picker.is_active and len(self.path) == 0 and len(self.model.rack_box) > 0:
+            self.search_box_deliver()
         elif self.model.box_waiting and len(self.path) == 0:
             self.search_box_pick()
         else:
@@ -216,7 +216,7 @@ class Robot(Agent):
     
         if len(self.path) > 0:
             self.sig_pos = self.path.pop()
-        # Si no se eligio una nueva posicion, mover aleatoriamente
+        # Si no se eligio una nueva posicion, mover aleatoriamente, sirve cuando se esta en un rack
         if self.sig_pos == self.pos:
             self.seleccionar_nueva_pos(vecinos_disponibles)
 
@@ -264,11 +264,11 @@ class Robot(Agent):
             rack_closest.box = self.box
             # Obtiene el path para llegar a un rack
             self.path = self.aStar([rack_closest.pos])
-        # elif self.model.box_waiting and len(self.path) == 0:
-        #     # que no tome en cuenta el rack de pickup como uno para dejar
-        #     if self.pos != self.model.rack_pickup and check_rack_leave_box(): return
+        elif self.model.picker.is_active and len(self.path) == 0:
+            # que no tome en cuenta el rack de pickup como uno para dejar
+            if self.pos != self.model.rack_pickup and check_rack_leave_box(): return
             
-        #     self.path = self.aStar([self.model.rack_delivery])
+            self.path = self.aStar([self.model.rack_delivery])
         elif len(self.path) == 0:
             # que no tome en cuenta el rack de pickup como uno para dejar
             if self.pos != self.model.rack_pickup and check_rack_leave_box(): return
@@ -298,10 +298,13 @@ class Robot(Agent):
             rack.box = None
             return True
         
+        print(self.model.rack_box)
         # que no tome en cuenta el rack de pickup como uno para dejar
         if self.pos != self.model.rack_pickup and self.pos == self.model.rack_delivery and check_rack_pickup_box(): return
 
         rack_closest: Rack = self.select_heuristic_rack(empty=False)
+        if rack_closest not in self.model.rack_box:
+            return
         self.model.rack_box.remove(rack_closest) # Eliminar rack de lista de racks con cajas
         self.path = self.aStar([rack_closest.pos])
 
@@ -448,7 +451,7 @@ class Robot(Agent):
 
         def dist(pos1, pos2):
             import math
-            return math.sqrt((pos1[0] - pos2[0]) ** 2 + (pos1[1] - pos2[1]) ** 2)
+            return math.sqrt((pos1[0] - pos2[0]) ** 2 + 4 * (pos1[1] - pos2[1]) ** 2)
         
         racks: list[Rack] = []
         # Rack con cajas o rack vacio
@@ -472,7 +475,7 @@ class Bodega(Model):
     def __init__(self, M: int = 50, N: int = 25,
                  num_robots: int = 5,
                  modo_pos_inicial: str = 'Aleatoria',
-                 speed_box_arrival: int = 3
+                 speed_box_arrival: int = 8
                  ):
         # Listas de agentes
         self.robots: list[Robot] = []
