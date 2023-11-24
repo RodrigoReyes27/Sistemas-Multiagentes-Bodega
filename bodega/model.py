@@ -223,8 +223,8 @@ class Robot(Agent):
             self.leave_box()
         elif self.carga <= 30 and len(self.path) == 0:
             self.charge()
-        # elif self.model.picker.is_active and len(self.path) == 0 and len(self.model.rack_box) > 0:
-        #     self.search_box_deliver()
+        elif self.model.picker.is_active and len(self.path) == 0 and len(self.model.rack_box) > 0:
+            self.search_box_deliver()
         elif self.model.box_waiting and len(self.path) == 0:
             self.search_box_pick()
         else:
@@ -263,8 +263,8 @@ class Robot(Agent):
             rack.box = self.box
             self.box.sig_pos = rack.pos # Confirmar que no haya error al dejar cajas en rack
             self.box = None
-            # Agregar rack a lista de racks con cajas
-            self.model.rack_box.append(rack)
+            # Agregar rack a lista de racks con cajas si no es de pickup o delivery
+            if rack.pos != self.model.rack_delivery: self.model.rack_box.append(rack)
             return True
 
         # 1 Si carga es menor a 30 - dejar caja en rack
@@ -314,18 +314,20 @@ class Robot(Agent):
                     rack = item
             if not in_rack or rack == None: return False
 
-            # Tomar la caja
+            # Si estoy en rack - tomar la caja
             self.box = rack.box
             rack.box = None
+            self.box.robot = self
             return True
-        
-        print(self.model.rack_box)
-        # que no tome en cuenta el rack de pickup como uno para dejar
-        if self.pos != self.model.rack_pickup and self.pos == self.model.rack_delivery and check_rack_pickup_box(): return
+
+        # Si no hay racks con cajas
+        if len(self.model.rack_box) == 0: return
+        print(f"Arreglo: {self.model.rack_box}")
+
+        # Checar que no sea de rack de pickup o de deilvery 
+        if self.pos != self.model.rack_pickup and check_rack_pickup_box(): return
 
         rack_closest: Rack = self.select_heuristic_rack(empty=False)
-        if rack_closest not in self.model.rack_box:
-            return
         self.model.rack_box.remove(rack_closest) # Eliminar rack de lista de racks con cajas
         self.path = self.aStar([rack_closest.pos])
 
@@ -340,8 +342,6 @@ class Robot(Agent):
                 if isinstance(item, Box): box = item
             if not in_rack or box == None: return False
             # Se agarra la caja si la caja aun no ha sido agarrado por otro robot
-            print(box.unique_id)
-            print(box.robot)
             if box.robot != None: return True
 
             self.box = box
@@ -476,7 +476,7 @@ class Robot(Agent):
 
         def dist(pos1, pos2):
             import math
-            return math.sqrt((pos1[0] - pos2[0]) ** 2 + 4 * (pos1[1] - pos2[1]) ** 2)
+            return math.sqrt((pos1[0] - pos2[0]) ** 2 + 8 * (pos1[1] - pos2[1]) ** 2)
         
         racks: list[Rack] = []
         # Rack con cajas o rack vacio
