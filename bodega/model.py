@@ -183,6 +183,7 @@ class Robot(Agent):
         self.carga = 3000
         self.box: Box = None
         self.path: list = []
+        self.action = None
 
     def seleccionar_nueva_pos(self, lista_de_vecinos):
         self.sig_pos = self.random.choice(lista_de_vecinos).pos
@@ -194,6 +195,21 @@ class Robot(Agent):
         vecinos_disponibles = list()
         for vecino in vecinos:
             if not isinstance(vecino, (Rack, Robot, ConveyorBelt, Box)): vecinos_disponibles.append(vecino)
+
+        # Si ya se completo la tarea que iba a hacer el robot, elegir una nueva
+        if self.action != None:
+            # 1.2 Si ya no se ocupa llevar cajas a entregar
+            if self.action == 'leave_box_deliver' and not self.model.picker.is_active:
+                self.action = None
+                self.path.clear()
+            # 3. Si ya no se ocupa recoger cajas de racks
+            elif self.action == 'deliver_box' and not self.model.picker.is_active:
+                self.action = None
+                self.path.clear()
+            # 4. Si ya no se ocupa recoger cajas de banda llegada
+            elif self.action == 'pick_box' and not self.model.box_waiting:
+                self.action = None
+                self.path.clear()
 
         # Determinar que accion debe hacer el robot por importancia
         # 1. Si tiene una caja - dejarla
@@ -207,18 +223,20 @@ class Robot(Agent):
             self.leave_box()
         elif self.carga <= 30 and len(self.path) == 0:
             self.charge()
-        elif self.model.picker.is_active and len(self.path) == 0 and len(self.model.rack_box) > 0:
-            self.search_box_deliver()
+        # elif self.model.picker.is_active and len(self.path) == 0 and len(self.model.rack_box) > 0:
+        #     self.search_box_deliver()
         elif self.model.box_waiting and len(self.path) == 0:
             self.search_box_pick()
         else:
             self.sig_pos = self.random.choice(vecinos_disponibles).pos
+            self.action == None
     
         if len(self.path) > 0:
             self.sig_pos = self.path.pop()
         # Si no se eligio una nueva posicion, mover aleatoriamente, sirve cuando se esta en un rack
         if self.sig_pos == self.pos:
             self.seleccionar_nueva_pos(vecinos_disponibles)
+            self.action == None
 
     def advance(self):        
         if self.pos != self.sig_pos:
@@ -264,11 +282,13 @@ class Robot(Agent):
             rack_closest.box = self.box
             # Obtiene el path para llegar a un rack
             self.path = self.aStar([rack_closest.pos])
+            self.action = 'leave_box_rack'
         elif self.model.picker.is_active and len(self.path) == 0:
             # que no tome en cuenta el rack de pickup como uno para dejar
             if self.pos != self.model.rack_pickup and check_rack_leave_box(): return
             
             self.path = self.aStar([self.model.rack_delivery])
+            self.action = 'leave_box_deliver'
         elif len(self.path) == 0:
             # que no tome en cuenta el rack de pickup como uno para dejar
             if self.pos != self.model.rack_pickup and check_rack_leave_box(): return
@@ -276,6 +296,7 @@ class Robot(Agent):
             rack_closest: Rack = self.select_heuristic_rack(empty=True)
             rack_closest.box = self.box
             self.path = self.aStar([rack_closest.pos])
+            self.action = 'leave_box_rack'
 
     # 2. Si carga es menor a 30 - cargar
     def charge(self):
@@ -318,8 +339,11 @@ class Robot(Agent):
                 if isinstance(item, Rack): in_rack = True
                 if isinstance(item, Box): box = item
             if not in_rack or box == None: return False
+            # Se agarra la caja si la caja aun no ha sido agarrado por otro robot
+            print(box.unique_id)
+            print(box.robot)
+            if box.robot != None: return True
 
-            # Se agarra la caja
             self.box = box
             box.robot = self
             return True
@@ -330,6 +354,7 @@ class Robot(Agent):
             if check_rack_pick_box(): return
 
             # Ruta hacia rack de pickup
+            self.action = 'pick_box'
             self.path = self.aStar([self.model.rack_pickup])
 
     def aStar(self, dest):
