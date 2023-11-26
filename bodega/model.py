@@ -654,13 +654,14 @@ class Bodega(Model):
             self.colisiones += 1
             print(f"Colisiones: {len(self.robots) - len(robots_pos)}, \t Total: {self.colisiones}")
 
-        # # Error, racks quedan marcados como ocupados sin cajas
-        # if self.curr_step % 500 == 0:
-        #     for rack in self.racks:
-        #         has_box = False
-        #         for item in self.grid.__getitem__(rack.pos):
-        #             if isinstance(item, Box): has_box = True
-        #         if not has_box and rack.box != None: rack.box = None
+        # Error, racks quedan marcados como ocupados sin cajas
+        # Se debe a camio de prioridad de robots
+        if self.curr_step % 500 == 0:
+            for rack in self.racks:
+                has_box = False
+                for item in self.grid.__getitem__(rack.pos):
+                    if isinstance(item, Box): has_box = True
+                if not has_box and rack.box != None: rack.box = None
 
 
 def get_grid(model: Model) -> np.ndarray:
