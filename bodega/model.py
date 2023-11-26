@@ -3,7 +3,9 @@ from mesa.agent import Agent
 from mesa.space import MultiGrid
 from mesa.time import SimultaneousActivation
 from mesa.datacollection import DataCollector
-
+from random import seed
+from random import randint
+seed(1)
 import numpy as np
 
 class CellAlgorithm():
@@ -47,19 +49,27 @@ class Picker(Agent):
         super().__init__(unique_id, model)
         self.iteration = 0
         self.is_active = False
-        self.capacity = 5
-        self.max_capacity = 5
+        maxcap = randint(5,20)
+        self.max_capacity = maxcap
+        
+        self.capacity = self.max_capacity
+        self.wait_time = 200
     
     def step(self):
         self.iteration += 1
         
         # Determinar si el camion va a estar activo (Cada cierto tiempo)
-        if self.iteration % 200 == 0:
+        if self.iteration % self.wait_time == 0:
             self.is_active = True
+            seconds = randint(200,1000)
+            self.wait_time = seconds
+            self.iteration = 0
         # Si el camion está activo y no tiene capacidad para llevar mas paquetes, desactivar
         if self.is_active and self.capacity == 0:
             # TODO - Max_capacity sea aleatorio
             self.is_active = False
+            cap = randint(5,20)
+            self.max_capacity = cap
             self.capacity = self.max_capacity
 
     def advance(self):
