@@ -222,7 +222,7 @@ class Robot(Agent):
                 self.action = None
                 self.path.clear()
             # 5. Si ya se termino de cargar el robot
-            elif self.action == 'cargar' and self.carga == 100:
+            elif self.action == 'cargar' and self.carga >= 100:
                 self.action = None
                 self.path.clear()
                 self.isCharging = False
