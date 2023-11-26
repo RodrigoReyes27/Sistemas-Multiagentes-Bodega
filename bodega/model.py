@@ -144,10 +144,17 @@ class ConveyorBelt(Agent):
 
         # Banda de llegada de paquetes - Crear paquete
         if self.delivery and self.pos[1] == 0 and self.iteration % self.speed_box_arrival == 0:
+            # No generar paquete si hay en la primera posición de cinta
+            for item in self.model.grid.__getitem__(self.pos):
+                if isinstance(item, Box): 
+                    self.iteration -= 1
+                    return
+            # Generar paquete
             box = Box(1500 + int(self.iteration / self.speed_box_arrival), self.model)
             self.model.grid.place_agent(box, self.pos)
             self.model.schedule.add(box)
             self.model.boxes.append(box)
+        # Prueba de banda de recolección de paquetes - Crear paquete y testear recolección
         # elif not self.delivery and self.pos[1] == 19 and self.iteration % self.speed_box_arrival == 0:
         #     box = Box(2000 + int(self.iteration / self.speed_box_arrival), self.model)
         #     self.model.grid.place_agent(box, (self.pos[0], self.pos[1] + 1))
@@ -238,6 +245,51 @@ class Robot(Agent):
             self.seleccionar_nueva_pos(vecinos_disponibles)
             self.action == None
 
+        # Manejo de colisiones
+        # Basado en preguntar a los demas robots su siguiente movimiento
+        # Robot con menor id no cambia su movimiento - los de mayor id cambian y se adaptan
+        # Si hay choque - el robot con menor id no cambia su movimiento (no se mueve)
+        can_move = True
+        for id in range(self.unique_id):
+            robot: Robot = self.model.robots[id]
+            # Se detecta que no se puede mantener misma ruta o hay choque
+            if robot.sig_pos == self.sig_pos:
+                can_move = False
+                break
+        
+        if not can_move:
+            # Si estaba haciendo una tarea regresar movimiento que tenia pensado hacer
+            if self.action != None: self.path.append(self.sig_pos)
+            self.sig_pos = self.pos
+
+            # Manejar el caso en el que alguien se quiere mover a donde yo estoy
+            is_obstacle = False
+            x, y = self.pos
+            posible_moves = [(x + 1, y), (x, y + 1), (x - 1, y), (x, y - 1)]
+            # Mantener solo movimientos validos
+            posible_moves = [pos for pos in posible_moves if self.isValid(pos[0], pos[1])]
+
+            # Checar si alguien se quiere mover a donde yo estoy - si robot es un estorbo
+            for id in range(self.unique_id):
+                robot: Robot = self.model.robots[id]
+                if robot.sig_pos == self.pos: 
+                    is_obstacle = True
+                if len(posible_moves) > 0 and robot.sig_pos in posible_moves:
+                    posible_moves.remove(robot.sig_pos)
+            
+            # Checar si posiciones a moverse son validas (no hay obstaculos)
+            if is_obstacle:
+                for pos in posible_moves:
+                    if isinstance(self.model.grid.__getitem__(pos), (Rack, Robot, ConveyorBelt, Box)):
+                        posible_moves.remove(pos)
+        
+            # Si es un estorbo y hay movimientos posibles, elegir uno aleatorio
+            if len(posible_moves) > 0 and is_obstacle:
+                self.sig_pos = self.random.choice(posible_moves)
+                # Recalcular path
+                if self.action != None:
+                    self.path = self.aStar([self.path[0]])
+
     def advance(self):        
         if self.pos != self.sig_pos:
             self.movimientos += 1
@@ -322,7 +374,6 @@ class Robot(Agent):
 
         # Si no hay racks con cajas
         if len(self.model.rack_box) == 0: return
-        print(f"Arreglo: {self.model.rack_box}")
 
         # Checar que no sea de rack de pickup o de deilvery 
         if self.pos != self.model.rack_pickup and check_rack_pickup_box(): return
@@ -399,6 +450,10 @@ class Robot(Agent):
             open_list.clear()
             visited_nodes.clear()
         
+        # Caso en el que no hay ruta para alguno de los destinos
+        for p in path: 
+            if p == None: return []
+        
         return min(path, key=len)
 
     def aStarHelper(self, cell_details, open_list, destination_cells, visited_nodes, i):
@@ -422,7 +477,7 @@ class Robot(Agent):
                 # Determinar si en posición a moverse hay un obstaculo
                 obstacle = False
                 for item in self.model.grid.__getitem__((new_x, new_y)):
-                    if isinstance(item, (Rack, ConveyorBelt)): obstacle = True
+                    if isinstance(item, (Robot, Rack, ConveyorBelt)): obstacle = True
                 
                 # Recorrer para todos los destinos
                 if (new_x, new_y) == (destination_cells[i].x, destination_cells[i].y):
@@ -500,7 +555,7 @@ class Bodega(Model):
     def __init__(self, M: int = 50, N: int = 25,
                  num_robots: int = 5,
                  modo_pos_inicial: str = 'Aleatoria',
-                 speed_box_arrival: int = 8
+                 speed_box_arrival: int = 12
                  ):
         # Listas de agentes
         self.robots: list[Robot] = []
@@ -521,6 +576,9 @@ class Bodega(Model):
         self.rack_pickup = (0, belt_size)
         self.rack_delivery = (M - 1, belt_size)
         self.rack_box: list[Rack] = []
+
+        self.colisiones = 0
+        self.curr_step = 0
 
         posiciones_disponibles = [pos for _, pos in self.grid.coord_iter()]
 
@@ -587,6 +645,23 @@ class Bodega(Model):
     def step(self):
         self.datacollector.collect(self)
         self.schedule.step()
+        self.curr_step += 1
+
+        robots_pos = set()
+        for robot in self.robots:
+            robots_pos.add(robot.pos)
+        if len(self.robots) != len(robots_pos):
+            self.colisiones += 1
+            print(f"Colisiones: {len(self.robots) - len(robots_pos)}, \t Total: {self.colisiones}")
+
+        # Error, racks quedan marcados como ocupados sin cajas
+        # Se debe a camio de prioridad de robots
+        if self.curr_step % 500 == 0:
+            for rack in self.racks:
+                has_box = False
+                for item in self.grid.__getitem__(rack.pos):
+                    if isinstance(item, Box): has_box = True
+                if not has_box and rack.box != None: rack.box = None
 
 
 def get_grid(model: Model) -> np.ndarray:
