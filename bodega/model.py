@@ -259,7 +259,7 @@ class Robot(Agent):
         if self.box != None and len(self.path) == 0 :
             self.leave_box()
         #Si tiene 50 de bateria o menos y si no tiene camino 
-        elif self.carga <= 50 and (len(self.path) == 0 or not self.isCharging):
+        elif self.carga <= 50 and (len(self.path) == 0 or (not self.isCharging and len(self.path) <= 2)):
             self.charge()
         elif self.model.picker.is_active and len(self.path) == 0 and len(self.model.rack_box) > 0 :
             self.search_box_deliver()
@@ -272,11 +272,12 @@ class Robot(Agent):
         if len(self.path) > 0: 
             #Si se esta cargado checa si el cargador al que va esta ocupado
             if(self.action == 'cargar' ):
-                agents = self.model.grid.get_cell_list_contents((self.path[0][0], self.path[0][1]))
-                cargador = [agent for agent in agents if isinstance(agent, Charger)]
-                #Si esta ocupado saca la posicion del cargador de la lista de camino
-                if(cargador[0].busy):
-                    self.path.pop(0)  
+                if(len(self.path) <= 2):
+                    agents = self.model.grid.get_cell_list_contents((self.path[0][0], self.path[0][1]))
+                    cargador = [agent for agent in agents if isinstance(agent, Charger)]
+                    #Si esta ocupado saca la posicion del cargador de la lista de camino
+                    if(cargador[0].busy):
+                        self.path.pop(0)  
             #Como se saca un elemento en la condicinal anterior es importante volver a checar si es mayor a 0
             if(len(self.path) > 0):
                 self.sig_pos = self.path.pop()
