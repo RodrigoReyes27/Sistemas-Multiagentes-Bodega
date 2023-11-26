@@ -1,5 +1,5 @@
 import mesa
-
+import math as mt
 from .model import Bodega, Robot, Rack, ConveyorBelt, Box, Charger
 
 MAX_NUMBER_ROBOTS = 10
@@ -7,7 +7,7 @@ MAX_NUMBER_ROBOTS = 10
 def agent_portrayal(agent):
     if isinstance(agent, Robot):
         return {"Shape": "circle", "Filled": "false", "Color": "black", "Layer": 1, "r": 1.0,
-                "text": f"{agent.carga}", "text_color": "yellow"}
+                "text": f"{mt.ceil(agent.carga)}", "text_color": "yellow"}
     elif isinstance(agent, Rack):
         return {"Shape": "rect", "Filled": "true", "Color": "white", "Layer": 0,
                 "w": 0.9, "h": 0.9, "text_color": "Black", "text": "🪑"}
