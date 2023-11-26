@@ -222,7 +222,7 @@ class Robot(Agent):
                 self.action = None
                 self.path.clear()
             # 5. Si ya se termino de cargar el robot
-            elif self.action == 'cargar' and self.carga >= 100:
+            elif self.action == 'cargar' and self.carga >= 100.00:
                 self.action = None
                 self.path.clear()
                 self.isCharging = False
@@ -231,6 +231,7 @@ class Robot(Agent):
                 agents = self.model.grid.get_cell_list_contents((self.pos[0], self.pos[1]))
                 cargador = [agent for agent in agents if isinstance(agent, Charger)]
                 cargador[0].busy = False
+
 
 
         if(self.isCharging):
@@ -270,7 +271,7 @@ class Robot(Agent):
             if(len(self.path) > 0):
                 self.sig_pos = self.path.pop()
             #Revisa si esta en un cargador
-            if(isinstance(self.model.grid.__getitem__((self.sig_pos[0], self.sig_pos[1]))[0], Charger)):
+            if(self.action == 'cargar' and isinstance(self.model.grid.__getitem__((self.sig_pos[0], self.sig_pos[1]))[0], Charger)):
                 #Si lo esta cambia estado a cargando
                 self.isCharging = True
                 agents = self.model.grid.get_cell_list_contents((self.sig_pos[0], self.sig_pos[1]))
