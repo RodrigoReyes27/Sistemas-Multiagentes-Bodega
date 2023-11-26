@@ -53,7 +53,7 @@ class Picker(Agent):
         self.max_capacity = maxcap
         
         self.capacity = self.max_capacity
-        self.wait_time = 200
+        self.wait_time = 1000
     
     def step(self):
         self.iteration += 1
