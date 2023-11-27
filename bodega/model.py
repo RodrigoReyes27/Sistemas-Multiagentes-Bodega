@@ -53,7 +53,7 @@ class Picker(Agent):
         self.max_capacity = maxcap
         
         self.capacity = self.max_capacity
-        self.wait_time = 200
+        self.wait_time = randint(200,400)
     
     def step(self):
         self.iteration += 1
@@ -61,7 +61,7 @@ class Picker(Agent):
         # Determinar si el camion va a estar activo (Cada cierto tiempo)
         if self.iteration % self.wait_time == 0:
             self.is_active = True
-            seconds = randint(200,1000)
+            seconds = randint(200, 400)
             self.wait_time = seconds
             self.iteration = 0
         # Si el camion está activo y no tiene capacidad para llevar mas paquetes, desactivar
@@ -147,13 +147,14 @@ class ConveyorBelt(Agent):
         self.delivery = delivery
         self.speed_box_arrival = speed_box_arrival
         self.iteration = -1
+        self.cajas = 0
     
     def step(self):
         # Contador de iteraciones para la llegada de paquetes
         self.iteration += 1
 
         # Banda de llegada de paquetes - Crear paquete
-        if self.delivery and self.pos[1] == 0 and self.iteration % self.speed_box_arrival == 0:
+        if self.delivery and self.pos[1] == 0 and self.iteration % self.speed_box_arrival == 0 and (self.cajas < 800 or self.cajas > 1500):
             # No generar paquete si hay en la primera posición de cinta
             for item in self.model.grid.__getitem__(self.pos):
                 if isinstance(item, Box): 
@@ -161,6 +162,7 @@ class ConveyorBelt(Agent):
                     return
             # Generar paquete
             box = Box(1500 + int(self.iteration / self.speed_box_arrival), self.model)
+            self.cajas += 1
             self.model.grid.place_agent(box, self.pos)
             self.model.schedule.add(box)
             self.model.boxes.append(box)
@@ -184,6 +186,11 @@ class ConveyorBelt(Agent):
                 self.model.grid.remove_agent(box)
                 self.model.schedule.remove(box)
                 self.model.boxes.remove(box)
+        else:
+            self.cajas += 1
+        
+        if self.cajas == 1500:
+            self.cajas = 0
 
     def advance(self):
         pass
@@ -259,7 +266,7 @@ class Robot(Agent):
         if self.box != None and len(self.path) == 0 :
             self.leave_box()
         #Si tiene 50 de bateria o menos y si no tiene camino 
-        elif self.carga <= 50 and (len(self.path) == 0 or not self.isCharging):
+        elif self.carga <= 50 and (len(self.path) == 0 or (not self.isCharging and len(self.path) <= 2)):
             self.charge()
         elif self.model.picker.is_active and len(self.path) == 0 and len(self.model.rack_box) > 0 :
             self.search_box_deliver()
@@ -272,11 +279,12 @@ class Robot(Agent):
         if len(self.path) > 0: 
             #Si se esta cargado checa si el cargador al que va esta ocupado
             if(self.action == 'cargar' ):
-                agents = self.model.grid.get_cell_list_contents((self.path[0][0], self.path[0][1]))
-                cargador = [agent for agent in agents if isinstance(agent, Charger)]
-                #Si esta ocupado saca la posicion del cargador de la lista de camino
-                if(cargador[0].busy):
-                    self.path.pop(0)  
+                if(len(self.path) <= 2):
+                    agents = self.model.grid.get_cell_list_contents((self.path[0][0], self.path[0][1]))
+                    cargador = [agent for agent in agents if isinstance(agent, Charger)]
+                    #Si esta ocupado saca la posicion del cargador de la lista de camino
+                    if(cargador[0].busy):
+                        self.path.pop(0)  
             #Como se saca un elemento en la condicinal anterior es importante volver a checar si es mayor a 0
             if(len(self.path) > 0):
                 self.sig_pos = self.path.pop()
