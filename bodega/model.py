@@ -61,7 +61,7 @@ class Picker(Agent):
         # Determinar si el camion va a estar activo (Cada cierto tiempo)
         if self.iteration % self.wait_time == 0:
             self.is_active = True
-            seconds = randint(200,1000)
+            seconds = randint(200,400)
             self.wait_time = seconds
             self.iteration = 0
         # Si el camion está activo y no tiene capacidad para llevar mas paquetes, desactivar
@@ -147,13 +147,14 @@ class ConveyorBelt(Agent):
         self.delivery = delivery
         self.speed_box_arrival = speed_box_arrival
         self.iteration = -1
+        self.cajas = 0
     
     def step(self):
         # Contador de iteraciones para la llegada de paquetes
         self.iteration += 1
 
         # Banda de llegada de paquetes - Crear paquete
-        if self.delivery and self.pos[1] == 0 and self.iteration % self.speed_box_arrival == 0:
+        if self.delivery and self.pos[1] == 0 and self.iteration % self.speed_box_arrival == 0 and (self.cajas < 800 or self.cajas > 1500):
             # No generar paquete si hay en la primera posición de cinta
             for item in self.model.grid.__getitem__(self.pos):
                 if isinstance(item, Box): 
@@ -161,6 +162,7 @@ class ConveyorBelt(Agent):
                     return
             # Generar paquete
             box = Box(1500 + int(self.iteration / self.speed_box_arrival), self.model)
+            self.cajas += 1
             self.model.grid.place_agent(box, self.pos)
             self.model.schedule.add(box)
             self.model.boxes.append(box)
@@ -184,6 +186,11 @@ class ConveyorBelt(Agent):
                 self.model.grid.remove_agent(box)
                 self.model.schedule.remove(box)
                 self.model.boxes.remove(box)
+        else:
+            self.cajas += 1
+        
+        if self.cajas == 1500:
+            self.cajas = 0
 
     def advance(self):
         pass
