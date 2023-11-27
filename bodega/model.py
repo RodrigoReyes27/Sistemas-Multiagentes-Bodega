@@ -53,7 +53,7 @@ class Picker(Agent):
         self.max_capacity = maxcap
         
         self.capacity = self.max_capacity
-        self.wait_time = 1000
+        self.wait_time = randint(200,400)
     
     def step(self):
         self.iteration += 1
@@ -61,7 +61,7 @@ class Picker(Agent):
         # Determinar si el camion va a estar activo (Cada cierto tiempo)
         if self.iteration % self.wait_time == 0:
             self.is_active = True
-            seconds = randint(200,400)
+            seconds = randint(200, 400)
             self.wait_time = seconds
             self.iteration = 0
         # Si el camion está activo y no tiene capacidad para llevar mas paquetes, desactivar
