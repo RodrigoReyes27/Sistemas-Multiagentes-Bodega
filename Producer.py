@@ -1,17 +1,21 @@
 from confluent_kafka import Producer, KafkaError
 from bodega.model import Bodega
+from dotenv import load_dotenv
 import json
 import time
+import os
+
+load_dotenv()
 
 if __name__ == '__main__':  
-    topic = "SistemasMultiagentes"
+    topic = os.getenv("TOPIC")
     conf = {  
-        'bootstrap.servers': "cell-1.streaming.mx-queretaro-1.oci.oraclecloud.com",
-        'security.protocol': 'SASL_SSL',
-        'ssl.ca.location': 'cert/cacert.pem',
-        'sasl.mechanism': 'PLAIN',
-        'sasl.username': 'rodrigotots927/rodrigotots927@gmail.com/ocid1.streampool.oc1.mx-queretaro-1.amaaaaaafzzzlhqa7jxd2lhgxboycmw2pbompiddu33tyj6m336h3bhkv33q',
-        'sasl.password': 'W_f)4J]TeZ;VgizbUqA5',
+        'bootstrap.servers': os.getenv("BOOTSTRAP_SERVERS"),
+        'security.protocol': os.getenv("SECURITY_PROTOCOL"),
+        'ssl.ca.location': os.getenv("SSL_CA_LOCATION"),
+        'sasl.mechanism': os.getenv("SASL_MECHANISM"),
+        'sasl.username': os.getenv("SASL_USERNAME"),
+        'sasl.password': os.getenv("SASL_PASSWORD"),
     }
     
     # Create Producer instance  
