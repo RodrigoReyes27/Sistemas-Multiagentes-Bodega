@@ -51,9 +51,10 @@ class Picker(Agent):
         self.is_active = False
         maxcap = randint(5,20)
         self.max_capacity = maxcap
-        
         self.capacity = self.max_capacity
-        self.wait_time = randint(200,400)
+        self.orders = self.max_capacity
+        # self.wait_time = randint(200,400)
+        self.wait_time = randint(100,200)
     
     def step(self):
         self.iteration += 1
@@ -268,7 +269,7 @@ class Robot(Agent):
         #Si tiene 50 de bateria o menos y si no tiene camino 
         elif self.carga <= 50 and (len(self.path) == 0 or (not self.isCharging and len(self.path) <= 2)):
             self.charge()
-        elif self.model.picker.is_active and len(self.path) == 0 and len(self.model.rack_box) > 0 :
+        elif self.model.picker.is_active and len(self.path) == 0 and len(self.model.rack_box) > 0 and self.model.picker.orders > 0:
             self.search_box_deliver()
         elif self.model.box_waiting and len(self.path) == 0 :
             self.search_box_pick()
@@ -395,7 +396,7 @@ class Robot(Agent):
             # Obtiene el path para llegar a un rack
             self.path = self.aStar([rack_closest.pos])
             self.action = 'leave_box_rack'
-        elif self.model.picker.is_active and len(self.path) == 0:
+        elif self.model.picker.is_active and len(self.path) == 0 and self.model.picker.orders > 0:
             # que no tome en cuenta el rack de pickup como uno para dejar
             if self.pos != self.model.rack_pickup and check_rack_leave_box(): return
             
@@ -430,12 +431,13 @@ class Robot(Agent):
                 if isinstance(item, Rack): 
                     in_rack = True
                     rack = item
-            if not in_rack or rack == None: return False
+            if not in_rack or rack == None or self.model.picker.orders == 0: return False
 
             # Si estoy en rack - tomar la caja
             self.box = rack.box
             rack.box = None
             self.box.robot = self
+            self.model.picker.orders -= 1
             return True
 
         # Si no hay racks con cajas
