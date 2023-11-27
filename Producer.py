@@ -30,7 +30,7 @@ if __name__ == '__main__':
             delivered_records += 1  
             print("Produced record to topic {} partition [{}] @ offset {}".format(msg.topic(), msg.partition(), msg.offset()))
 
-    for n in range(200):
+    for n in range(1500):
         record_key = str(n)
         agents = model.robots
         chargers = model.chargers
@@ -75,7 +75,7 @@ if __name__ == '__main__':
         print(json.dumps(message, indent=2))
         
         producer.poll(0)
-        time.sleep(0.5)
+        time.sleep(1)
         model.step()
 
 producer.flush()  
