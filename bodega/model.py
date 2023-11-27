@@ -353,7 +353,7 @@ class Robot(Agent):
     def advance(self):        
         if self.pos != self.sig_pos:
             self.movimientos += 1
-            self.carga -= 0.2
+            self.carga -= self.model.battery_drain
         
         if self.carga > 0:
             self.model.grid.move_agent(self, self.sig_pos)
@@ -621,7 +621,8 @@ class Bodega(Model):
     def __init__(self, M: int = 50, N: int = 25,
                  num_robots: int = 5,
                  modo_pos_inicial: str = 'Aleatoria',
-                 speed_box_arrival: int = 12
+                 speed_box_arrival: int = 12,
+                 battery_drain: float = 0.2
                  ):
         # Listas de agentes
         self.robots: list[Robot] = []
@@ -633,6 +634,7 @@ class Bodega(Model):
 
         self.num_chargers = 4
         self.num_robots = num_robots
+        self.battery_drain = battery_drain
 
         self.grid = MultiGrid(M, N, False)
         self.schedule = SimultaneousActivation(self)
