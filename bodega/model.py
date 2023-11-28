@@ -273,8 +273,8 @@ class Robot(Agent):
         #Si tiene 50 de bateria o menos y si no tiene camino 
         elif self.carga <= 50 and (len(self.path) == 0 or (not self.isCharging and len(self.path) <= 2)):
             self.charge()
-        elif self.model.picker.is_active and len(self.path) == 0 and len(self.model.rack_box) > 0:
-            self.search_box_deliver()
+        elif self.model.picker.is_active and len(self.path) == 0 and len(self.model.rack_box) > 0 and self.search_box_deliver():
+            pass
         elif self.model.box_waiting and len(self.path) == 0:
             self.search_box_pick()
         else:
@@ -400,7 +400,7 @@ class Robot(Agent):
             # Obtiene el path para llegar a un rack
             self.path = self.aStar([rack_closest.pos])
             self.action = 'leave_box_rack'
-        elif self.model.picker.is_active and len(self.path) == 0:
+        elif self.model.picker.is_active and len(self.path) == 0 and self.action == 'deliver_box_pick_rack':
             # que no tome en cuenta el rack de pickup como uno para dejar
             if self.pos != self.model.rack_pickup and check_rack_leave_box(): return
             
@@ -444,11 +444,11 @@ class Robot(Agent):
             return True
 
         # Si no hay racks con cajas y que haya camion esperando cajas
-        if len(self.model.rack_box) == 0: return
+        if len(self.model.rack_box) == 0: return False
 
         # Checar que no sea de rack de pickup o de deilvery 
-        if self.pos != self.model.rack_pickup and check_rack_pickup_box(): return
-        elif self.model.picker.orders <= 0: return
+        if self.pos != self.model.rack_pickup and check_rack_pickup_box(): return False
+        elif self.model.picker.orders <= 0: return False
 
         print(self.model.picker.capacity)
         self.model.picker.orders -= 1
