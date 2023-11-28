@@ -51,26 +51,26 @@ class Picker(Agent):
         self.is_active = False
         maxcap = randint(5,20)
         self.max_capacity = maxcap
-        
         self.capacity = self.max_capacity
-        self.wait_time = randint(200,400)
+        self.orders = self.max_capacity
+        self.wait_time = randint(150,300)
     
     def step(self):
         self.iteration += 1
-        
+   
         # Determinar si el camion va a estar activo (Cada cierto tiempo)
         if self.iteration % self.wait_time == 0:
             self.is_active = True
-            seconds = randint(200, 400)
+            seconds = randint(150,300)
             self.wait_time = seconds
             self.iteration = 0
         # Si el camion está activo y no tiene capacidad para llevar mas paquetes, desactivar
         if self.is_active and self.capacity == 0:
-            # TODO - Max_capacity sea aleatorio
             self.is_active = False
             cap = randint(5,20)
             self.max_capacity = cap
             self.capacity = self.max_capacity
+            self.orders = self.max_capacity
 
     def advance(self):
         pass
@@ -207,7 +207,7 @@ class Robot(Agent):
         self.charger = None
         self.sig_pos = None
         self.movimientos = 0
-        self.carga = 100
+        self.carga = 3000
         self.box: Box = None
         self.path: list = []
         self.action = None
@@ -234,7 +234,7 @@ class Robot(Agent):
                 self.action = None
                 self.path.clear()
             # 3. Si ya no se ocupa recoger cajas de racks
-            elif self.action == 'deliver_box' and not self.model.picker.is_active:
+            elif self.action == 'deliver_box_pick_rack' and not self.model.picker.is_active:
                 self.action = None
                 self.path.clear()
             # 4. Si ya no se ocupa recoger cajas de banda llegada
@@ -253,7 +253,7 @@ class Robot(Agent):
                 cargador[0].busy = False
 
 
-        if(self.isCharging):
+        if self.isCharging:
             return
 
         # Determinar que accion debe hacer el robot por importancia
@@ -265,14 +265,14 @@ class Robot(Agent):
         # 3. Si hay camion esperando y hay cajas en racks - buscar caja en rack y recoger
         # 4. Si hay cajas esperando en banda llegada - recoger
         
-        if self.box != None and len(self.path) == 0 :
+        if self.box != None and len(self.path) == 0:
             self.leave_box()
         #Si tiene 50 de bateria o menos y si no tiene camino 
         elif self.carga <= 50 and (len(self.path) == 0 or (not self.isCharging and len(self.path) <= 2)):
             self.charge()
-        elif self.model.picker.is_active and len(self.path) == 0 and len(self.model.rack_box) > 0 :
-            self.search_box_deliver()
-        elif self.model.box_waiting and len(self.path) == 0 :
+        elif self.model.picker.is_active and len(self.path) == 0 and len(self.model.rack_box) > 0 and self.search_box_deliver():
+            pass
+        elif self.model.box_waiting and len(self.path) == 0:
             self.search_box_pick()
         else:
             self.sig_pos = self.random.choice(vecinos_disponibles).pos
@@ -284,18 +284,18 @@ class Robot(Agent):
 
         if len(self.path) > 0: 
             #Si se esta cargado checa si el cargador al que va esta ocupado
-            if(self.action == 'cargar' ):
-                if(len(self.path) <= 2):
+            if self.action == 'cargar':
+                if len(self.path) <= 2:
                     agents = self.model.grid.get_cell_list_contents((self.path[0][0], self.path[0][1]))
                     cargador = [agent for agent in agents if isinstance(agent, Charger)]
                     #Si esta ocupado saca la posicion del cargador de la lista de camino
-                    if(cargador[0].busy):
+                    if cargador[0].busy:
                         self.path.pop(0)  
             #Como se saca un elemento en la condicinal anterior es importante volver a checar si es mayor a 0
-            if(len(self.path) > 0):
+            if len(self.path) > 0:
                 self.sig_pos = self.path.pop()
             #Revisa si esta en un cargador
-            if(self.action == 'cargar' and isinstance(self.model.grid.__getitem__((self.sig_pos[0], self.sig_pos[1]))[0], Charger)):
+            if self.action == 'cargar' and isinstance(self.model.grid.__getitem__((self.sig_pos[0], self.sig_pos[1]))[0], Charger):
                 #Si lo esta cambia estado a cargando
                 self.isCharging = True
                 self.isGoingToCharge = False
@@ -410,7 +410,7 @@ class Robot(Agent):
             # Obtiene el path para llegar a un rack
             self.path = self.aStar([rack_closest.pos])
             self.action = 'leave_box_rack'
-        elif self.model.picker.is_active and len(self.path) == 0:
+        elif self.model.picker.is_active and len(self.path) == 0 and self.action == 'deliver_box_pick_rack':
             # que no tome en cuenta el rack de pickup como uno para dejar
             if self.pos != self.model.rack_pickup and check_rack_leave_box(): return
             
@@ -440,7 +440,6 @@ class Robot(Agent):
             charger = self.get_charger_by_pos((self.path[0][0],self.path[0][1]))
 
             if(charger.busy):
-
                 chargers = []
 
                 for pos in charger_pos:
@@ -478,7 +477,6 @@ class Robot(Agent):
         self.isGoingToCharge = True
         if(len(self.path) > 0):
             self.charger = self.path[0]
-        
 
     # 3. Si hay camion esperando y hay cajas en racks - buscar caja en rack y recoger
     def search_box_deliver(self):
@@ -499,15 +497,18 @@ class Robot(Agent):
             self.box.robot = self
             return True
 
-        # Si no hay racks con cajas
-        if len(self.model.rack_box) == 0: return
+        # Si no hay racks con cajas y que haya camion esperando cajas
+        if len(self.model.rack_box) == 0: return False
 
         # Checar que no sea de rack de pickup o de deilvery 
-        if self.pos != self.model.rack_pickup and check_rack_pickup_box(): return
+        if self.pos != self.model.rack_pickup and check_rack_pickup_box(): return False
+        elif self.model.picker.orders <= 0: return False
 
+        self.model.picker.orders -= 1
         rack_closest: Rack = self.select_heuristic_rack(empty=False)
         self.model.rack_box.remove(rack_closest) # Eliminar rack de lista de racks con cajas
         self.path = self.aStar([rack_closest.pos])
+        self.action = 'deliver_box_pick_rack'
 
     # 4. Si hay cajas esperando en banda llegada - recoger
     def search_box_pick(self):
@@ -749,7 +750,6 @@ class Bodega(Model):
             self.positions_chargers = [(int(M / 2) + i*2, j) for i in [-1, 1] for j in [0, N - 1]]
         else:
             self.positions_chargers = [(int(M / 2) + i*2, j) for i in range(-3, 5, 2) for j in [0, N - 1]]
-
         for id, pos in enumerate(self.positions_chargers):
             charger = Charger(id + 10, self)
             self.grid.place_agent(charger, pos)
