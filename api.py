@@ -1,6 +1,6 @@
 from confluent_kafka import Producer
 from flask import Flask, request, jsonify
-from bodega.model2 import Bodega
+from bodega.model import Bodega
 from dotenv import load_dotenv
 import json
 import threading
