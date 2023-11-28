@@ -39,5 +39,5 @@ model_params = {
 
 server = mesa.visualization.ModularServer(
     Bodega, [grid],
-    "botCleaner", model_params, 8521
+    "Almacén Lobsters", model_params, 8521
 )
