@@ -202,6 +202,9 @@ class Robot(Agent):
     def __init__(self, unique_id, model):
         super().__init__(unique_id, model)
         self.isCharging = False
+        self.isGoingToCharge = False
+        self.wait = False
+        self.charger = None
         self.sig_pos = None
         self.movimientos = 0
         self.carga = 3000
@@ -243,12 +246,11 @@ class Robot(Agent):
                 self.action = None
                 self.path.clear()
                 self.isCharging = False
-
+                self.charger = None
                 #Hace que el cargador en el que este, tome un estado de que ya no esta ocupado
                 agents = self.model.grid.get_cell_list_contents((self.pos[0], self.pos[1]))
                 cargador = [agent for agent in agents if isinstance(agent, Charger)]
                 cargador[0].busy = False
-
 
 
         if self.isCharging:
@@ -275,7 +277,11 @@ class Robot(Agent):
         else:
             self.sig_pos = self.random.choice(vecinos_disponibles).pos
             self.action == None
-    
+
+        if( self.wait ):
+            return
+
+
         if len(self.path) > 0: 
             #Si se esta cargado checa si el cargador al que va esta ocupado
             if self.action == 'cargar':
@@ -292,6 +298,7 @@ class Robot(Agent):
             if self.action == 'cargar' and isinstance(self.model.grid.__getitem__((self.sig_pos[0], self.sig_pos[1]))[0], Charger):
                 #Si lo esta cambia estado a cargando
                 self.isCharging = True
+                self.isGoingToCharge = False
                 agents = self.model.grid.get_cell_list_contents((self.sig_pos[0], self.sig_pos[1]))
                 cargador = [agent for agent in agents if isinstance(agent, Charger)]
                 #El cargador cambiaa su estado a ocupado
@@ -300,7 +307,7 @@ class Robot(Agent):
                 
         # Si no se eligio una nueva posicion, mover aleatoriamente, sirve cuando se esta en un rack
         #Si se estaba cargando entonces que se quede en la misma posicion
-        if self.sig_pos == self.pos and self.action != "cargar":
+        if self.sig_pos == self.pos and self.action != "cargar": 
             self.seleccionar_nueva_pos(vecinos_disponibles)
             self.action == None
         
@@ -349,6 +356,7 @@ class Robot(Agent):
                 # Recalcular path
                 if self.action != None:
                     self.path = self.aStar([self.path[0]])
+            
 
     def advance(self):        
         if self.pos != self.sig_pos:
@@ -357,6 +365,13 @@ class Robot(Agent):
         
         if self.carga > 0:
             self.model.grid.move_agent(self, self.sig_pos)
+
+    # Regresa cargador en base a posicion dada
+    def get_charger_by_pos(self, target_pos):
+        for charger in self.model.chargers:
+            if charger.pos == target_pos:
+                return charger
+        return None
 
     # 1. Si tiene una caja - dejarla
     def leave_box(self):
@@ -412,12 +427,56 @@ class Robot(Agent):
 
     # 2. Si carga es menor a 50 - cargar
     def charge(self):
+        charger_pos = [charger.pos for charger in self.model.chargers]
 
-        if not self.isCharging:
-            charger_pos = [charger.pos for charger in self.model.chargers]
-            self.path = self.aStar(charger_pos)
-            self.action = 'cargar'
-        
+        if(len(self.path) < 3 and self.isGoingToCharge):
+
+            if(len(self.path) == 0):
+                self.path = [self.charger]
+                
+            if(self.path[0] not in charger_pos):
+                self.path = self.aStar(charger_pos)
+                  
+            charger = self.get_charger_by_pos((self.path[0][0],self.path[0][1]))
+
+            if(charger.busy):
+                chargers = []
+
+                for pos in charger_pos:
+                    if pos[1] == self.path[0][1] and pos != self.path[0]:
+                        charger = self.get_charger_by_pos(pos)
+                        if(not charger.busy):
+                            chargers.append(pos)
+
+                if(len(chargers)>0):       
+                    self.path = self.aStar(chargers)
+                    self.charger = self.path[0]
+                    self.wait = False
+                    return
+
+                for poss in charger_pos:
+                    charger = self.get_charger_by_pos(poss)
+                    if poss[1] != pos[1] and not charger.busy:
+                        chargers.append(poss)
+                if(len(chargers)>0):       
+                    self.path = self.aStar(chargers)
+                    self.charger = self.path[0]
+                    self.wait = False
+                    return
+                else:
+                    self.wait = True
+                    return
+                                
+            else:
+                self.wait = False
+
+            return
+                           
+        self.path = self.aStar(charger_pos)
+        self.action = 'cargar'
+        self.isGoingToCharge = True
+        if(len(self.path) > 0):
+            self.charger = self.path[0]
 
     # 3. Si hay camion esperando y hay cajas en racks - buscar caja en rack y recoger
     def search_box_deliver(self):
@@ -687,7 +746,10 @@ class Bodega(Model):
 
         # Posicionamiento de cargadores
         # Cargadores en mitad superior y inferior
-        self.positions_chargers = [(int(M / 2) + i, j) for i in [-1, 1] for j in [0, N - 1]]
+        if (self.num_robots <= 6):
+            self.positions_chargers = [(int(M / 2) + i*2, j) for i in [-1, 1] for j in [0, N - 1]]
+        else:
+            self.positions_chargers = [(int(M / 2) + i*2, j) for i in range(-3, 5, 2) for j in [0, N - 1]]
         for id, pos in enumerate(self.positions_chargers):
             charger = Charger(id + 10, self)
             self.grid.place_agent(charger, pos)
@@ -720,8 +782,11 @@ class Bodega(Model):
         self.curr_step += 1
 
         robots_pos = set()
+        print("Estados espera")
         for robot in self.robots:
             robots_pos.add(robot.pos)
+            print(f"Espera: ",robot.wait, "Esta cargando: ", robot.isCharging, "Esta llendo a cargarse: ", robot.isGoingToCharge)
+            
         if len(self.robots) != len(robots_pos):
             self.colisiones += 1
             print(f"Colisiones: {len(self.robots) - len(robots_pos)}, \t Total: {self.colisiones}")
