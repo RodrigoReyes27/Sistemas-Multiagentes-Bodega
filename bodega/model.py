@@ -268,7 +268,7 @@ class Robot(Agent):
         if self.box != None and len(self.path) == 0:
             self.leave_box()
         #Si tiene 50 de bateria o menos y si no tiene camino 
-        elif self.carga <= 50 and (len(self.path) == 0 or (not self.isCharging and len(self.path) <= 2)):
+        elif (self.action == None or self.action == 'cargar') and self.carga <= 50 and (len(self.path) == 0 or (not self.isCharging and len(self.path) <= 2)):
             self.charge()
         elif self.model.picker.is_active and len(self.path) == 0 and len(self.model.rack_box) > 0 and self.search_box_deliver():
             pass
