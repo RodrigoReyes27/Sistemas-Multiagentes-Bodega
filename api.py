@@ -1,6 +1,6 @@
 from confluent_kafka import Producer
 from flask import Flask, request, jsonify
-from bodega.model import Bodega
+from bodega.model2 import Bodega
 from dotenv import load_dotenv
 import json
 import threading
@@ -40,60 +40,67 @@ def acked(err, msg):
         delivered_records += 1
         print("Produced record to topic {} partition [{}] @ offset {}".format(msg.topic(), msg.partition(), msg.offset()))
 
-def produce_message():
+def get_message_data():
+    agents = model.robots
+    chargers = model.chargers
+    racks = model.racks
+    boxes = model.boxes
+    conveyor_belts = model.conveyor_belts
+
+    robots = {
+        "quantity": len(agents),
+        "positions": [{"id": agent.unique_id, "x": agent.pos[0], "y": agent.pos[1]} for agent in agents]
+    }
+
+    chargers = {
+        "quantity": len(chargers),
+        "positions": [{"id": charger.unique_id, "x": charger.pos[0], "y": charger.pos[1]} for charger in chargers]
+    }
+
+    racks = {
+        "quantity": len(racks),
+        "positions": [{"id": rack.unique_id, "x": rack.pos[0], "y": rack.pos[1]} for rack in racks]
+    }
+
+    boxes = {
+        "quantity": len(boxes),
+        "positions": [{"id": box.unique_id, "x": box.pos[0], "y": box.pos[1]} for box in boxes]
+    }
+
+    conveyor_belts = {
+        "quantity": len(conveyor_belts),
+        "positions": [{"id": conveyor_belt.unique_id, "x": conveyor_belt.pos[0], "y": conveyor_belt.pos[1]} for conveyor_belt in conveyor_belts]
+    }
+
+    message = {
+        "robots": robots,
+        "chargers": chargers,
+        "racks": racks,
+        "boxes": boxes,
+        "conveyor_belts": conveyor_belts
+    }
+
+    return message
+
+def produce_messages():
     global is_running
     global delivered_records
+    if delivered_records == 2500:
+        is_running = False
+        return
     while is_running:
         record_key = str(delivered_records)
 
-        agents = model.robots
-        chargers = model.chargers
-        racks = model.racks
-        boxes = model.boxes
-        conveyor_belts = model.conveyor_belts
-
-        robots = {
-            "quantity": len(agents),
-            "positions": [{"id": agent.unique_id, "x": agent.pos[0], "y": agent.pos[1]} for agent in agents]
-        }
-
-        chargers = {
-            "quantity": len(chargers),
-            "positions": [{"id": charger.unique_id, "x": charger.pos[0], "y": charger.pos[1]} for charger in chargers]
-        }
-
-        racks = {
-            "quantity": len(racks),
-            "positions": [{"id": rack.unique_id, "x": rack.pos[0], "y": rack.pos[1]} for rack in racks]
-        }
-
-        boxes = {
-            "quantity": len(boxes),
-            "positions": [{"id": box.unique_id, "x": box.pos[0], "y": box.pos[1]} for box in boxes]
-        }
-
-        conveyor_belts = {
-            "quantity": len(conveyor_belts),
-            "positions": [{"id": conveyor_belt.unique_id, "x": conveyor_belt.pos[0], "y": conveyor_belt.pos[1]} for conveyor_belt in conveyor_belts]
-        }
-
-        message = {
-            "robots": robots,
-            "chargers": chargers,
-            "racks": racks,
-            "boxes": boxes,
-            "conveyor_belts": conveyor_belts
-        }
+        message = get_message_data()
 
         producer.produce(topic, key=record_key, value=json.dumps(message, indent=2), on_delivery=acked)
         producer.poll(0)
-        time.sleep(0.5)
+        time.sleep(0.4)
         model.step()
 
 @app.route('/start', methods=['GET'])
 def start_service():
     global is_running, model, params
-    print(params)
     if not is_running:
         is_running = True
         model = Bodega(
@@ -101,7 +108,15 @@ def start_service():
             speed_box_arrival=params["speed_box_arrival"],
             battery_drain=params["battery_drain"]
         )  # Crear una nueva instancia al iniciar el servicio
-        threading.Thread(target=produce_message).start()
+
+        # Enviar datos iniciales de la bodega, para que el frontend pueda renderizar
+        message = get_message_data()
+        producer.produce(topic, key=str(0), value=json.dumps(message, indent=2), on_delivery=acked)
+        producer.poll(0)
+        time.sleep(10)
+        model.step()
+
+        threading.Thread(target=produce_messages).start()
     return jsonify({"status": "Service started"})
 
 
