@@ -229,8 +229,12 @@ class Robot(Agent):
 
         # Si ya se completo la tarea que iba a hacer el robot, elegir una nueva
         if self.action != None :
+            # Bug se queda con accion de dejar caja
+            if self.action == 'leave_box_rack' and self.box == None:
+                self.action = None
+                self.path.clear()
             # 1.2 Si ya no se ocupa llevar cajas a entregar
-            if self.action == 'leave_box_deliver' and not self.model.picker.is_active:
+            elif self.action == 'leave_box_deliver' and not self.model.picker.is_active:
                 self.action = None
                 self.path.clear()
             # 3. Si ya no se ocupa recoger cajas de racks

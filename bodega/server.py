@@ -27,7 +27,7 @@ grid = mesa.visualization.CanvasGrid(
 model_params = {
     "num_robots": mesa.visualization.Slider(
         "Número de Robots",
-        5,
+        7,
         1,
         MAX_NUMBER_ROBOTS,
         1,
