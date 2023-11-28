@@ -225,7 +225,7 @@ class Robot(Agent):
             if not isinstance(vecino, (Rack, Robot, ConveyorBelt, Box)): vecinos_disponibles.append(vecino)
 
         if (self.isCharging and isinstance(self.model.grid.__getitem__((self.pos[0], self.pos[1]))[0], Charger)):
-            self.carga += 1
+            self.carga += 5
 
         # Si ya se completo la tarea que iba a hacer el robot, elegir una nueva
         if self.action != None :
