@@ -268,7 +268,7 @@ class Robot(Agent):
         if self.box != None and len(self.path) == 0:
             self.leave_box()
         #Si tiene 50 de bateria o menos y si no tiene camino 
-        elif (self.action == None or self.action == 'cargar') and self.carga <= 50 and (len(self.path) == 0 or (not self.isCharging and len(self.path) <= 2)):
+        elif (self.action == None or self.action == 'cargar') and self.carga <= 60 and (len(self.path) == 0 or (not self.isCharging and len(self.path) <= 2)):
             self.charge()
         elif self.model.picker.is_active and len(self.path) == 0 and len(self.model.rack_box) > 0 and self.search_box_deliver():
             pass
@@ -397,7 +397,7 @@ class Robot(Agent):
         # 1 Si carga es menor a 30 - dejar caja en rack
         # 2 Si hay camion esperando - dejar caja en banda entrega
         # 3 De lo contrario - dejar caja en rack
-        if self.carga <= 50 and len(self.path) == 0:
+        if self.carga <= 60 and len(self.path) == 0:
             # Si no hay path puede ser:
             # - todavia no se define path a rack más cercano
             # - ya se llegó al rack más cercano
