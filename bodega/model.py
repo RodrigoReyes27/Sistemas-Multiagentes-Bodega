@@ -782,10 +782,8 @@ class Bodega(Model):
         self.curr_step += 1
 
         robots_pos = set()
-        print("Estados espera")
         for robot in self.robots:
             robots_pos.add(robot.pos)
-            print(f"Espera: ",robot.wait, "Esta cargando: ", robot.isCharging, "Esta llendo a cargarse: ", robot.isGoingToCharge)
             
         if len(self.robots) != len(robots_pos):
             self.colisiones += 1
