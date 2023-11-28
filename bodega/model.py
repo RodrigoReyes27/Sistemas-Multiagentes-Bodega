@@ -207,7 +207,7 @@ class Robot(Agent):
         self.charger = None
         self.sig_pos = None
         self.movimientos = 0
-        self.carga = 60
+        self.carga = 100
         self.box: Box = None
         self.path: list = []
         self.action = None
