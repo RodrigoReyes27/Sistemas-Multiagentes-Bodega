@@ -49,7 +49,7 @@ class Picker(Agent):
         super().__init__(unique_id, model)
         self.iteration = 0
         self.is_active = False
-        maxcap = randint(5,20)
+        maxcap = randint(5,13)
         self.max_capacity = maxcap
         self.capacity = self.max_capacity
         self.orders = self.max_capacity
@@ -59,7 +59,7 @@ class Picker(Agent):
         self.iteration += 1
    
         # Determinar si el camion va a estar activo (Cada cierto tiempo)
-        if self.iteration % self.wait_time == 0:
+        if self.iteration % self.wait_time == 0 and not self.is_active:
             self.is_active = True
             seconds = randint(150,300)
             self.wait_time = seconds
@@ -67,10 +67,13 @@ class Picker(Agent):
         # Si el camion está activo y no tiene capacidad para llevar mas paquetes, desactivar
         if self.is_active and self.capacity == 0:
             self.is_active = False
-            cap = randint(5,20)
+            cap = randint(5,13)
             self.max_capacity = cap
             self.capacity = self.max_capacity
             self.orders = self.max_capacity
+        # Avisar que no todas las cajas se entregaron
+        if self.is_active and self.iteration == 150:
+            self.orders = self.capacity
 
     def advance(self):
         pass
@@ -497,7 +500,7 @@ class Robot(Agent):
                 if isinstance(item, Rack): 
                     in_rack = True
                     rack = item
-            if not in_rack or rack == None: return False
+            if not in_rack or rack == None or rack.box == None: return False
 
             # Si estoy en rack - tomar la caja
             self.box = rack.box
@@ -510,7 +513,7 @@ class Robot(Agent):
 
         # Checar que no sea de rack de pickup o de deilvery 
         if self.pos != self.model.rack_pickup and check_rack_pickup_box(): return False
-        elif self.model.picker.orders <= 0: return False
+        elif self.model.picker.orders < 0: return False
 
         self.model.picker.orders -= 1
         rack_closest: Rack = self.select_heuristic_rack(empty=False)
