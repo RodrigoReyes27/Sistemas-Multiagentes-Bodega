@@ -137,7 +137,7 @@ class Box(Agent):
         if self.robot != None and self.sig_pos != self.robot.sig_pos:
             self.sig_pos = self.robot.sig_pos
         
-        if can_move:
+        if can_move or (self.robot != None and self.sig_pos == self.robot.sig_pos):
             self.model.grid.move_agent(self, self.sig_pos)
 
 
