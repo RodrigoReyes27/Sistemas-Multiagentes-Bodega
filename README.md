@@ -36,13 +36,19 @@ Para iniciar la API, ejecuta el siguiente comando:
 python api.py
 ```
 
-Iniciar el envío de datos de usando la API
+Iniciar el envío de datos Kafka de usando la API
 
 http://127.0.0.1:5000/start
 
+Detener el envío de datos de Kafka usando la API
+
 http://127.0.0.1:5000/stop
 
+Reinciar simulación de mesa usando la API
+
 http://127.0.0.1:5000/restart
+
+Cambiar parámetros de la simulación de mesa
 
 http://127.0.0.1:5000/params?num_robots=10&speed_box_arrival=10&battery_drain=0.1
 
