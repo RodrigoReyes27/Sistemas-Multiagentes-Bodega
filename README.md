@@ -37,6 +37,7 @@ python api.py
 ```
 
 Iniciar el envío de datos de usando la API
+
 http://127.0.0.1:5000/start
 
 http://127.0.0.1:5000/stop
