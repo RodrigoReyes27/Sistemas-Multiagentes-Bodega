@@ -49,7 +49,7 @@ class Picker(Agent):
         super().__init__(unique_id, model)
         self.iteration = 0
         self.is_active = False
-        maxcap = randint(5,13)
+        maxcap = randint(5,20)
         self.max_capacity = maxcap
         self.capacity = self.max_capacity
         self.orders = self.max_capacity
@@ -59,7 +59,7 @@ class Picker(Agent):
         self.iteration += 1
    
         # Determinar si el camion va a estar activo (Cada cierto tiempo)
-        if self.iteration % self.wait_time == 0 and not self.is_active:
+        if self.iteration % self.wait_time == 0:
             self.is_active = True
             seconds = randint(150,300)
             self.wait_time = seconds
@@ -67,13 +67,10 @@ class Picker(Agent):
         # Si el camion está activo y no tiene capacidad para llevar mas paquetes, desactivar
         if self.is_active and self.capacity == 0:
             self.is_active = False
-            cap = randint(5,13)
+            cap = randint(5,20)
             self.max_capacity = cap
             self.capacity = self.max_capacity
             self.orders = self.max_capacity
-        # Avisar que no todas las cajas se entregaron
-        if self.is_active and self.iteration == 150:
-            self.orders = self.capacity
 
     def advance(self):
         pass
@@ -140,7 +137,7 @@ class Box(Agent):
         if self.robot != None and self.sig_pos != self.robot.sig_pos:
             self.sig_pos = self.robot.sig_pos
         
-        if can_move or (self.robot != None and self.sig_pos == self.robot.sig_pos):
+        if can_move:
             self.model.grid.move_agent(self, self.sig_pos)
 
 
@@ -164,7 +161,7 @@ class ConveyorBelt(Agent):
                     self.iteration -= 1
                     return
             # Generar paquete
-            box = Box(1500 + int(self.iteration / self.speed_box_arrival), self.model)
+            box = Box(1600 + int(self.iteration / self.speed_box_arrival), self.model)
             self.cajas += 1
             self.model.grid.place_agent(box, self.pos)
             self.model.schedule.add(box)
@@ -228,20 +225,12 @@ class Robot(Agent):
             if not isinstance(vecino, (Rack, Robot, ConveyorBelt, Box)): vecinos_disponibles.append(vecino)
 
         if (self.isCharging and isinstance(self.model.grid.__getitem__((self.pos[0], self.pos[1]))[0], Charger)):
-            self.carga += 5
-
-        elif(self.isCharging and not isinstance(self.model.grid.__getitem__((self.pos[0], self.pos[1]))[0], Charger)):
-            self.isCharging = False
-    
+            self.carga += 1
 
         # Si ya se completo la tarea que iba a hacer el robot, elegir una nueva
         if self.action != None :
-            # Bug se queda con accion de dejar caja
-            if self.action == 'leave_box_rack' and self.box == None:
-                self.action = None
-                self.path.clear()
             # 1.2 Si ya no se ocupa llevar cajas a entregar
-            elif self.action == 'leave_box_deliver' and not self.model.picker.is_active:
+            if self.action == 'leave_box_deliver' and not self.model.picker.is_active:
                 self.action = None
                 self.path.clear()
             # 3. Si ya no se ocupa recoger cajas de racks
@@ -264,7 +253,7 @@ class Robot(Agent):
                 cargador[0].busy = False
 
 
-        if (self.isCharging  ):
+        if self.isCharging:
             return
 
         # Determinar que accion debe hacer el robot por importancia
@@ -279,7 +268,7 @@ class Robot(Agent):
         if self.box != None and len(self.path) == 0:
             self.leave_box()
         #Si tiene 50 de bateria o menos y si no tiene camino 
-        elif (self.action == None or self.action == 'cargar') and self.carga <= 60 and (len(self.path) == 0 or (not self.isCharging and len(self.path) <= 2)):
+        elif self.carga <= 50 and (len(self.path) == 0 or (not self.isCharging and len(self.path) <= 2)):
             self.charge()
         elif self.model.picker.is_active and len(self.path) == 0 and len(self.model.rack_box) > 0 and self.search_box_deliver():
             pass
@@ -334,6 +323,9 @@ class Robot(Agent):
             if robot.sig_pos == self.sig_pos:
                 can_move = False
                 break
+            if robot.sig_pos == self.pos and robot.pos == self.sig_pos:
+                can_move = False
+                break
         
         if not can_move:
             # Si estaba haciendo una tarea regresar movimiento que tenia pensado hacer
@@ -367,11 +359,11 @@ class Robot(Agent):
                 # Recalcular path
                 if self.action != None:
                     self.path = self.aStar([self.path[0]])
-            
 
     def advance(self):        
         if self.pos != self.sig_pos:
             self.movimientos += 1
+
             self.carga -= self.model.battery_drain
         
         if self.carga > 0:
@@ -408,7 +400,7 @@ class Robot(Agent):
         # 1 Si carga es menor a 30 - dejar caja en rack
         # 2 Si hay camion esperando - dejar caja en banda entrega
         # 3 De lo contrario - dejar caja en rack
-        if self.carga <= 60 and len(self.path) == 0:
+        if self.carga <= 50 and len(self.path) == 0:
             # Si no hay path puede ser:
             # - todavia no se define path a rack más cercano
             # - ya se llegó al rack más cercano
@@ -500,7 +492,7 @@ class Robot(Agent):
                 if isinstance(item, Rack): 
                     in_rack = True
                     rack = item
-            if not in_rack or rack == None or rack.box == None: return False
+            if not in_rack or rack == None: return False
 
             # Si estoy en rack - tomar la caja
             self.box = rack.box
@@ -513,7 +505,7 @@ class Robot(Agent):
 
         # Checar que no sea de rack de pickup o de deilvery 
         if self.pos != self.model.rack_pickup and check_rack_pickup_box(): return False
-        elif self.model.picker.orders < 0: return False
+        elif self.model.picker.orders <= 0: return False
 
         self.model.picker.orders -= 1
         rack_closest: Rack = self.select_heuristic_rack(empty=False)
@@ -750,6 +742,7 @@ class Bodega(Model):
         for id, pos in enumerate(positions_racks):
             mueble = Rack(70 + id, self)
             self.grid.place_agent(mueble, pos)
+            
             posiciones_disponibles.remove(pos)
             if pos == (0, belt_size) or pos == (M - 1, belt_size):
                 self.schedule.add(mueble)
