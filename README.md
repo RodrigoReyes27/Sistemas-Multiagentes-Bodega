@@ -38,9 +38,12 @@ python api.py
 
 Iniciar el envío de datos de usando la API
 http://127.0.0.1:5000/start
+
 http://127.0.0.1:5000/stop
+
 http://127.0.0.1:5000/restart
-[http://127.0.0.1](http://127.0.0.1:5000/params?num_robots=10&speed_box_arrival=10&battery_drain=0.1)
+
+http://127.0.0.1:5000/params?num_robots=10&speed_box_arrival=10&battery_drain=0.1
 
 Para iniciar la simulación en Mesa, ejecuta el siguiente comando:
 
