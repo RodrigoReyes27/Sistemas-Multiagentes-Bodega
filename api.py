@@ -25,7 +25,7 @@ delivered_records = 0
 is_running = False
 model: Bodega = None
 params = {
-    "num_robots": 5,
+    "num_robots": 7,
     "speed_box_arrival": 12,
     "battery_drain": 0.2
 }
