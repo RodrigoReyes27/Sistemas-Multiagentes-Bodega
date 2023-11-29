@@ -24,6 +24,24 @@ def agent_portrayal(agent):
 grid = mesa.visualization.CanvasGrid(
     agent_portrayal, 50, 25, 600, 600)
 
+chart_deliveries = mesa.visualization.ChartModule(
+    [{"Label": "Entregas", "Color": '#36A2EB', "label": "Cajas entregadas"}],
+    50, 200,
+    data_collector_name="datacollector"
+)
+
+chart_movements = mesa.visualization.ChartModule(
+    [{"Label": "Movimientos", "Color": '#36A2EB', "label": "Movimientos"}],
+    50, 200,
+    data_collector_name="datacollector"
+)
+
+chart_battery_used = mesa.visualization.ChartModule(
+    [{"Label": "Pila", "Color": '#36A2EB', "label": "Pila usada"}],
+    50, 200,
+    data_collector_name="datacollector"
+)
+
 model_params = {
     "num_robots": mesa.visualization.Slider(
         "Número de Robots",
@@ -38,6 +56,6 @@ model_params = {
 }
 
 server = mesa.visualization.ModularServer(
-    Bodega, [grid],
+    Bodega, [grid, chart_deliveries, chart_movements, chart_battery_used],
     "Almacén Lobsters", model_params, 8521
 )

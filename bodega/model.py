@@ -186,6 +186,7 @@ class ConveyorBelt(Agent):
                     box = item
             if picker.is_active and box != None:
                 picker.capacity -= 1
+                self.model.deliveries += 1
                 self.model.grid.remove_agent(box)
                 self.model.schedule.remove(box)
                 self.model.boxes.remove(box)
@@ -373,9 +374,11 @@ class Robot(Agent):
         if self.pos != self.sig_pos:
             self.movimientos += 1
             self.carga -= self.model.battery_drain
+            self.model.battery_used += self.model.battery_drain
         
         if self.carga > 0:
             self.model.grid.move_agent(self, self.sig_pos)
+            self.model.total_movements += 1
 
     # Regresa cargador en base a posicion dada
     def get_charger_by_pos(self, target_pos):
@@ -705,7 +708,6 @@ class Bodega(Model):
         self.conveyor_belts: list[ConveyorBelt] = []
         self.picker: Picker = None
 
-        self.num_chargers = 4
         self.num_robots = num_robots
         self.battery_drain = battery_drain
 
@@ -721,6 +723,9 @@ class Bodega(Model):
         self.colisiones = 0
         self.curr_step = 0
 
+        self.deliveries = 0
+        self.battery_used = 0
+        self.total_movements = 0
 
         posiciones_disponibles = [pos for _, pos in self.grid.coord_iter()]
 
@@ -743,7 +748,7 @@ class Bodega(Model):
         # Posicionamiento de racks
         positions_racks = list()
         for y in [3, 4, 8, 9, 13, 14, 18, 19]:
-            positions_racks += [(x, y) for x in list(range(3, 11)) + list(range(14, 22)) + list(range(25, 33)) + list(range(37, 45))]
+            positions_racks += [(x, y) for x in list(range(4, 12)) + list(range(15, 23)) + list(range(26, 34)) + list(range(37, 45))]
         positions_racks.append(self.rack_pickup)
         positions_racks.append(self.rack_delivery)
 
@@ -784,7 +789,7 @@ class Bodega(Model):
             self.robots.append(robot)
 
         self.datacollector = DataCollector(
-            model_reporters={"Grid": get_grid},
+            model_reporters={"Grid": get_grid, "Movimientos": get_movements, "Pila": get_batteries, "Entregas": get_delivieres},
         )
 
     def step(self):
@@ -832,3 +837,12 @@ def get_sig_positions(model: Model):
 
 def get_positions(model: Model):
     return [{"unique_id": agent.unique_id, "pos" : agent.pos} for agent in model.robots]
+
+def get_delivieres(model: Model):
+    return model.deliveries
+
+def get_batteries(model: Model):
+    return model.battery_used
+
+def get_movements(model: Model):
+    return model.total_movements
