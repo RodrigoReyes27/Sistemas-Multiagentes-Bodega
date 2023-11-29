@@ -227,6 +227,10 @@ class Robot(Agent):
         if (self.isCharging and isinstance(self.model.grid.__getitem__((self.pos[0], self.pos[1]))[0], Charger)):
             self.carga += 5
 
+        elif(self.isCharging and not isinstance(self.model.grid.__getitem__((self.pos[0], self.pos[1]))[0], Charger)):
+            self.isCharging = False
+    
+
         # Si ya se completo la tarea que iba a hacer el robot, elegir una nueva
         if self.action != None :
             # Bug se queda con accion de dejar caja
@@ -257,7 +261,7 @@ class Robot(Agent):
                 cargador[0].busy = False
 
 
-        if self.isCharging:
+        if (self.isCharging  ):
             return
 
         # Determinar que accion debe hacer el robot por importancia
