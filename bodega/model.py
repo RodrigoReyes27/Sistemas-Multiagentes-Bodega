@@ -73,7 +73,7 @@ class Picker(Agent):
             self.orders = self.max_capacity
         # Avisar que no todas las cajas se entregaron
         if self.is_active and self.iteration == 150:
-            self.orders = self.capacity
+            self.orders = self.capacity + 1
 
     def advance(self):
         pass
